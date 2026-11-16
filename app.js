@@ -71,7 +71,6 @@ const STATS = [
   ["int", "📖", "Intelligence: tactics", "INT"],
   ["wis", "🧠", "Wisdom: survival instincts", "WIS"],
   ["cha", "💬", "Charisma: forming alliances", "CHA"],
-  ["hp", "❤", "Starting HP", "HP"],
   ["water", "💧", "Water: rounds before thirst", "Water"],
   ["food", "🍖", "Food: rounds before hunger", "Food"],
   ["bottle", "🍶", "Water bottles", "Bottles"],
@@ -302,7 +301,7 @@ $("#teams").addEventListener("input", e => {
   const d = e.target.dataset;
   if (d.n !== undefined) P[+d.n].name = e.target.value;
   else if (d.fac !== undefined) P[+d.fac].fac = e.target.value.slice(0, 20);
-  else if (d.s && e.target.value !== "") P[+d.i][d.s] = clampS(d.s, e.target.value);
+  else if (d.s && e.target.value !== "") { P[+d.i][d.s] = clampS(d.s, e.target.value); if (d.s === "con") { const m = e.target.closest(".sp").querySelector(".mhp"); if (m) m.textContent = "❤ Max HP " + (50 + 5 * P[+d.i].con); } }
 });
 
 $("#teams").addEventListener("change", e => {
@@ -400,7 +399,7 @@ function start(sd) {
   T = P.slice(0, cntN()).map((p, i) => ({
     id: i, n: p.name.trim() || "Nameless", img: p.img, team: p.team,
     g: (!$("#ban").checked && p.team >= 0) ? p.team : 100 + i,
-    hp: p.hp, str: p.str, dex: p.dex, con: p.con, int: p.int, wis: p.wis, cha: p.cha,
+    mhp: 50 + 5 * p.con, hp: 50 + 5 * p.con, left: false, str: p.str, dex: p.dex, con: p.con, int: p.int, wis: p.wis, cha: p.cha,
     atk: Math.max(1, Math.min(10, 5 + md(p.str))), spd: Math.max(1, Math.min(10, 5 + md(p.dex))), wit: Math.max(1, Math.min(10, 5 + md(p.wis))),
     traits: [...p.traits], job: p.job, fac: p.fac.trim(), fk: p.fac.trim().toLowerCase(), fx: [], k: 0, dmg: 0, alive: true,
     w: p.weapon || null, water: p.water, food: p.food, bottle: p.bottle,
@@ -427,6 +426,9 @@ function start(sd) {
 const alive = () => T.filter(t => t.alive);
 const gainW = (t, x) => { t.water = Math.min(12, t.water + x); };
 const gainF = (t, x) => { t.food = Math.min(99, t.food + x); };
+/* everything health-related is a share of the contestant's own max HP (50 + 5 x CON) */
+const pct = (t, p) => Math.round(t.mhp * p);
+const heal = (t, p) => { t.hp = Math.min(t.mhp, t.hp + pct(t, p)); };
 
 function die(t, by, why) {
   t.alive = false; t.hp = 0;
@@ -482,7 +484,7 @@ function infect(t, L) {
 }
 
 function fight(a, b, L, ca, cb) {
-  const p = t => atk(t) + (t.w ? 3 : 0) + rnd(7) + t.hp / 25 - (t.water <= 0 ? 3 : 0) /* dehydrated fighters are weaker */
+  const p = t => atk(t) + (t.w ? 3 : 0) + rnd(7) + 4 * t.hp / t.mhp - (t.water <= 0 ? 3 : 0) /* dehydrated fighters are weaker */
     + (t === a && ca ? atk(ca) * .6 : 0) + (t === b && cb ? atk(cb) * .6 : 0); /* joint attack bonus */
   let w = a, l = b;
   if (p(b) > p(a)) { w = b; l = a; }
@@ -490,18 +492,18 @@ function fight(a, b, L, ca, cb) {
   
   if (chance(.15)) {
     L.push([`${N(a)} and ${N(b)} trade blows, then both back off, bloodied.`, "h"]);
-    a.hp -= 15; b.hp -= 15; a.dmg += 15; b.dmg += 15;
+    const da = pct(a, .15), db = pct(b, .15); a.hp -= da; b.hp -= db; a.dmg += da; b.dmg += db;
     settle(L, a, b);
     return;
   }
   
   /* speed: the loser may break away before the blow lands (about 6% to 24% for stats 1 to 10) */
-  if (chance(Math.min(.3, .04 + spd(l) * .02))) {
+  if (chance(Math.max(.03, Math.min(.5, .10 + .03 * (spd(l) - spd(w)) + .10 * (1 - l.hp / l.mhp))))) {
     L.push([`${N(l)} breaks away from ${N(w)} and escapes.`, "h", "💨"]);
     return;
   }
   
-  const roll = 20 + rnd(40), taken = Math.max(5, roll - 2 * md(l.con)); /* Constitution soaks damage */
+  const roll = Math.round(12 + 2.5 * atk(w) + (w.w ? 8 : 0) + rnd(16)), taken = Math.max(5, roll - 2 * md(l.con)); /* STR and weapon deal it, CON soaks it */
   w.dmg += Math.min(taken, Math.max(0, l.hp));
   l.hp -= taken;
   const how = w.w ? `with a ${w.w}` : "with bare hands";
@@ -518,12 +520,19 @@ function fight(a, b, L, ca, cb) {
     if (got) L.push([`${N(w)} searches the body and takes ${got} suppl${got > 1 ? "ies" : "y"}.`, "a", "🎒"]);
   } else {
     L.push([`${N(w)} wounds ${N(l)} ${how}, and ${N(l)} limps away.`, "h"]);
-    if (roll >= 40 && !l.inf && chance(.3 - md(l.con) * .03)) infect(l, L);
-    if (roll >= 35 && l.alive) addStatus(l, "bleed", L);
+    if (taken >= .4 * l.mhp && !l.inf && chance(.3 - md(l.con) * .03)) infect(l, L);
+    if (taken >= .35 * l.mhp && l.alive) addStatus(l, "bleed", L);
   }
 }
 
 const DEF_SOLO = [
+  { t: "{a} eats suspicious berries and doubles over.", fx: "st:poison", ic: "☠️", on: true },
+  { t: "{a} hears something huge in the dark and freezes.", fx: "st:fear", ic: "😨", on: true },
+  { t: "{a} finds a quiet moment and steadies their nerves.", fx: "st:inspire", ic: "✨", on: true },
+  { t: "{a} steps too close to a smouldering vent.", fx: "st:burn", ic: "🔥", on: true },
+  { t: "{a} drinks from a glowing spring and feels stronger.", fx: "st:regen", ic: "💚", on: true },
+  { t: "{a} walks into a low branch in the dark and sees stars.", fx: "st:stun", ic: "😵", on: true },
+  { t: "{a} cuts a hand on rusted wire.", fx: "st:bleed", ic: "🩸", on: true },
   { t: "{a} finds a sealed ration crate in a collapsed tower.", fx: "ration", ic: "📦", on: true },
   { t: "{a} pulls a {w} from an abandoned supply drop.", fx: "weapon", ic: "🎒", on: true },
   { t: "{a} sleeps in a hollow and recovers some strength.", fx: "heal", ic: "💤", on: true },
@@ -539,6 +548,11 @@ const DEF_SOLO = [
 ];
 
 const DEF_DUO = [
+  { t: "{a} flings a handful of poisoned thorns at {b}.", fx: "st:poison", ic: "☠️", on: true },
+  { t: "{a} sets the grass alight around {b}.", fx: "st:burn", ic: "🔥", on: true },
+  { t: "{a} stares {b} down until they freeze.", fx: "st:fear", ic: "😨", on: true },
+  { t: "{a} clubs {b} across the head.", fx: "st:stun", ic: "😵", on: true },
+  { t: "{a} gives {b} a rousing speech.", fx: "st:inspire", ic: "✨", on: true },
   { t: "{a} and {b} trade blows, then both back off, bloodied.", fx: "hurtboth", ic: "🗡️", on: true },
   { t: "{a} gives chase, but {b} is too quick.", fx: "none", ic: "💨", on: true },
   { t: "{a} steals supplies from {b} while they sleep.", fx: "steal", ic: "🎒", on: true },
@@ -563,7 +577,7 @@ const fill = (x, a, b, w) => x.replace(/\{a\}/g, N(a)).replace(/\{b\}/g, b ? N(b
 function solo(a, L) {
   if (!BAN && T.some(t => t.alive && t !== a && t.g === a.g) && chance(.08)) {
     a.g = gid++;
-    L.push([`${N(a)} slips away from the group in the night and goes solo.`, "h", "🚶"]);
+    a.left = true; L.push([`${N(a)} slips away from the group in the night and goes solo.`, "h", "🚶"]);
     return;
   }
   
@@ -584,8 +598,8 @@ function solo(a, L) {
   if (e.fx === "ration") a.ration++;
   if (e.fx === "bottle") a.bottle++;
   if (e.fx === "medkit") a.kit++;
-  if (e.fx === "heal") a.hp = Math.min(100, a.hp + 18);
-  if (e.fx === "hurt") a.hp -= 10 + rnd(20);
+  if (e.fx === "heal") heal(a, .18);
+  if (e.fx === "hurt") a.hp -= pct(a, (10 + rnd(20)) / 100);
   if (e.fx === "die") a.hp = 0;
   
   L.push([fill(e.t, a, null, w || a.w), e.fx === "hurt" ? "h" : e.fx === "die" ? "k" : e.fx === "none" ? "" : "a", e.ic]);
@@ -610,8 +624,8 @@ function runDuo(e, a, b, L) {
     L.push([`${N(a)} tries to take supplies from ${N(b)}, but ${N(b)} wakes in time.`, "h", "🎒"]);
     return;
   }
-  if (e.fx === "hurtboth") { a.hp -= 15; b.hp -= 15; a.dmg += 15; b.dmg += 15; a.ex = b.ex = true; }
-  if (e.fx === "hurtb") { const d = 15 + rnd(20); b.hp -= d; a.dmg += d; a.ex = b.ex = true; }
+  if (e.fx === "hurtboth") { const da = pct(a, .15), db = pct(b, .15); a.hp -= da; b.hp -= db; a.dmg += da; b.dmg += db; a.ex = b.ex = true; }
+  if (e.fx === "hurtb") { const d = Math.max(3, pct(b, .12 + .015 * atk(a)) + rnd(10)); b.hp -= d; a.dmg += d; a.ex = b.ex = true; }
   if (e.fx === "steal") {
     const inv = ITEMS.filter(k => b[k] > 0);
     if (inv.length) {
@@ -677,7 +691,7 @@ function sponsor() {
   const g = $("#spG").value, L = [];
   if (g === "food") { t.ration++; L.push([`A sponsor parachutes a food basket to ${N(t)}.`, "a", "🎁"]); }
   if (g === "water") { t.bottle += 2; L.push([`A sponsor drops two bottles of clean water to ${N(t)}.`, "a", "💧"]); }
-  if (g === "heal") { t.hp = Math.min(100, t.hp + 45); t.inf = false; L.push([`A sponsor sends ${N(t)} a medical kit.`, "a", "🩹"]); }
+  if (g === "heal") { heal(t, .45); t.inf = false; L.push([`A sponsor sends ${N(t)} a medical kit.`, "a", "🩹"]); }
   if (g === "weapon") { t.w = pick(WPN); L.push([`A sponsor sends ${N(t)} a ${t.w}.`, "a", "🎁"]); }
   drop("Sponsor drop", L);
   render();
@@ -746,6 +760,9 @@ $("#resetEv").onclick = () => {
 };
 
 const DEF_DIS = [
+  { t: "Toxic spores drift across the arena.", v: "{a} breathes the spores.", fx: "st:poison", n: 3, ic: "☣️", on: true },
+  { t: "A deafening roar rolls across the arena.", v: "{a} freezes in terror.", fx: "st:fear", n: 4, ic: "😨", on: true },
+  { t: "A blinding flash lights up the sky.", v: "{a} is stunned by the light.", fx: "st:stun", n: 3, ic: "⚡", on: true },
   { t: "The storm wall tightens. Anyone left outside gets caught.", v: "{a} is swept into the storm.", fx: "killweak", n: 2, ic: "⛈️", on: true },
   { t: "A flood siren sounds in the lowlands.", v: "{a} is knocked off their feet by the water.", fx: "hurtrand", n: 3, ic: "🌊", on: true },
   { t: "A wildfire races through the dry grass.", v: "{a} is scorched by the flames.", fx: "hurtrand", n: 3, ic: "🔥", on: true },
@@ -771,7 +788,7 @@ function runDisaster(d, L) {
   L.push([d.t, "c", d.ic]);
   
   let v = [];
-  if (d.fx === "killweak") v = al.map(t => ({ t, s: t.hp + spd(t) * 3 + wit(t) * 2 + rnd(30) })).sort((x, y) => x.s - y.s).slice(0, d.n).map(o => o.t);
+  if (d.fx === "killweak") v = al.map(t => ({ t, s: 100 * t.hp / t.mhp + spd(t) * 3 + wit(t) * 2 + rnd(30) })).sort((x, y) => x.s - y.s).slice(0, d.n).map(o => o.t);
   if (d.fx === "killrand" || d.fx === "hurtrand" || d.fx.startsWith("st:")) v = shuf([...al]).slice(0, d.n);
   
   const out = t => {
@@ -782,7 +799,7 @@ function runDisaster(d, L) {
   };
   
   v.forEach(t => {
-    if (d.fx === "hurtrand") t.hp -= 30;
+    if (d.fx === "hurtrand") t.hp -= pct(t, chance(.3 + .04 * md(t.dex)) ? .15 : .30); /* a good DEX save halves it */
     else if (!d.fx.startsWith("st:")) t.hp = 0;
     L.push([fill(d.v || "{a} is caught up in it.", t), d.fx === "hurtrand" || d.fx.startsWith("st:") ? "h" : "k", d.ic]);
     out(t);
@@ -791,8 +808,8 @@ function runDisaster(d, L) {
   
   al.forEach(t => {
     if (!t.alive) return;
-    if (d.fx === "hurtall") { t.hp -= 15; out(t); }
-    if (d.fx === "healall") t.hp = Math.min(100, t.hp + 25);
+    if (d.fx === "hurtall") { t.hp -= pct(t, .15); out(t); }
+    if (d.fx === "healall") heal(t, .25);
     if (d.fx === "foodall") gainF(t, 10);
     if (d.fx === "thirstall") t.water = Math.max(0, t.water - 2);
     if (d.fx === "rainall") gainW(t, 3);
@@ -833,21 +850,21 @@ function disaster() {
 /* Each round is half a day. Water is the fast clock, food the slow one.
    Fighting, wounds and fever all burn both faster. Supplies are used automatically. */
 function upkeep(t, L) {
-  const hurt = t.hp < 50;
+  const hurt = t.hp < t.mhp * .5;
   t.water -= 1 + (t.ex ? .75 : 0) + (hurt ? .5 : 0) + (t.inf ? .5 : 0);
   t.food -= 1 + (t.ex ? 1 : 0) + (hurt || t.inf ? 1 : 0);
   t.ex = false;
   
-  if (t.inf) t.hp -= 5;
+  if (t.inf) t.hp -= pct(t, .05);
   if (t.water <= 1 && t.bottle > 0) { t.bottle--; gainW(t, 4); L.push([`${N(t)} drinks from a water bottle.`, "a", "🍶"]); }
   if (t.food <= 3 && t.ration > 0) { t.ration--; gainF(t, 14); L.push([`${N(t)} eats a ration.`, "a", "🥫"]); }
-  if (t.kit > 0 && (t.hp < 40 || (t.inf && t.hp < 70))) {
-    t.kit--; t.hp = Math.min(100, t.hp + 35); t.inf = false;
+  if (t.kit > 0 && (t.hp < t.mhp * .4 || (t.inf && t.hp < t.mhp * .7))) {
+    t.kit--; heal(t, .35); t.inf = false;
     L.push([`${N(t)} uses a medkit.`, "a", "🩹"]);
   }
   
   if (t.water <= 0) {
-    t.water = 0; t.hp -= 30;
+    t.water = 0; t.hp -= pct(t, Math.max(.12, .30 - .03 * md(t.con)));
     if (!t.dz) {
       t.dz = true;
       L.push([`${N(t)} is badly dehydrated and growing weak.`, "h", "🥵"]);
@@ -856,8 +873,8 @@ function upkeep(t, L) {
     t.dz = false;
   }
   
-  t.fx = t.fx.filter(s => { const d = SD(s.id); if (!d) return false; t.hp = Math.min(100, t.hp - d.dmg); s.left--; return s.left > 0; });
-  if (t.food <= 0) { t.food = 0; t.hp -= 8; }
+  t.fx = t.fx.filter(s => { const d = SD(s.id); if (!d) return false; t.hp = Math.min(t.mhp, t.hp - Math.round(t.mhp * d.dmg / 100)); s.left--; return s.left > 0; });
+  if (t.food <= 0) { t.food = 0; t.hp -= pct(t, Math.max(.02, .08 - .01 * md(t.con))); }
   
   if (t.hp <= 0 && t.alive) {
     const why = t.water <= 0 ? "thirst" : t.food <= 0 ? "hunger" : t.inf ? "infection" : "wounds";
@@ -890,8 +907,8 @@ function step() {
   alive().forEach(t => { /* jobs like Medic patch up wounded groupmates */
     const h = tsum(t, "heal");
     if (h > 0 && chance(h / 100)) {
-      const w = alive().filter(o => o !== t && o.g === t.g && o.hp < 70);
-      if (w.length) { const o = pick(w); o.hp = Math.min(100, o.hp + 15); L.push([`${N(t)} patches up ${N(o)}'s wounds.`, "a", "🩺"]); }
+      const w = alive().filter(o => o !== t && o.g === t.g && o.hp < o.mhp * .7);
+      if (w.length) { const o = pick(w); heal(o, .15); L.push([`${N(t)} patches up ${N(o)}'s wounds.`, "a", "🩺"]); }
     }
   });
   const pool = shuf(alive()); POOL = pool;
@@ -969,7 +986,7 @@ function render() {
   
   /* stats and inventory stay hidden until a contestant is clicked (or "Show details" is on) */
   const detail = t => t.alive 
-    ? `<span class="meta dt">${abil(t)}</span><span class="meta dt">⚔${atk(t)} 💨${spd(t)} 🧠${wit(t)} · ❤${Math.max(0, Math.round(t.hp))} · 💧${+t.water.toFixed(1)} 🍖${Math.round(t.food)}${t.inf ? " · 🦠 infected" : ""}</span><span class="meta dt">🍶${t.bottle} 🥫${t.ration} 🩹${t.kit}</span>` 
+    ? `<span class="meta dt">${abil(t)}</span><span class="meta dt">⚔${atk(t)} 💨${spd(t)} 🧠${wit(t)} · ❤${Math.max(0, Math.round(t.hp))}/${t.mhp} · 💧${+t.water.toFixed(1)} 🍖${Math.round(t.food)}${t.inf ? " · 🦠 infected" : ""}${t.left ? " · left a team" : ""}</span><span class="meta dt">🍶${t.bottle} 🥫${t.ration} 🩹${t.kit}</span>` 
     : `<span class="meta dt">Out in round ${t.round}: ${esc(t.why)}</span>`;
     
   const row = t => {
@@ -979,7 +996,7 @@ function render() {
         ${av(t)}
         <div class="x">
           <b>${esc(t.n)}</b>
-          <div class="hp"><i style="width:${Math.max(0, t.hp)}%"></i></div>
+          <div class="hp"><i style="width:${Math.max(0, 100 * t.hp / t.mhp)}%"></i></div>
           <span class="meta">${t.alive ? (t.w || "unarmed") : "fallen"} · ${t.k} kill${t.k === 1 ? "" : "s"}${t.alive ? " " + sx(t) : ""}</span>
           ${detail(t)}
         </div>
@@ -1077,7 +1094,7 @@ const uid = () => "x" + Math.floor(Math.random() * 1e8).toString(36);
 const OLD = { str: "atk", dex: "spd", wis: "wit" };
 const TF = [["atk", -5, 5], ["spd", -5, 5], ["wit", -5, 5], ["coord", -50, 100], ["betray", -50, 100], ["ally", -50, 100], ["heal", 0, 100]];
 const SF = [["dmg", -30, 30], ["atk", -5, 5], ["spd", -5, 5], ["wit", -5, 5], ["dur", 1, 10]];
-const TL = { atk: "Attack", spd: "Speed", wit: "Wits", coord: "Joint-attack chance (%)", betray: "Betrayal chance (% points)", ally: "Alliance chance (%)", heal: "Chance each round to patch up a groupmate (%)", dmg: "HP lost each round (negative heals)", dur: "Rounds it lasts" };
+const TL = { atk: "Attack", spd: "Speed", wit: "Wits", coord: "Joint-attack chance (%)", betray: "Betrayal chance (% points)", ally: "Alliance chance (%)", heal: "Chance each round to patch up a groupmate (%)", dmg: "% of max HP lost each round (negative heals)", dur: "Rounds it lasts" };
 const T0 = { atk: 0, spd: 0, wit: 0, coord: 0, betray: 0, ally: 0, heal: 0 };
 const DEF_TR = [
   { id: "coord", n: "Coordinated", ic: "🤝", kind: "trait", ...T0, coord: 30, ally: 5 },
@@ -1097,7 +1114,7 @@ const DEF_ST = [
   { id: "bleed", n: "Bleeding", ic: "🩸", dmg: 4, atk: 0, spd: 0, wit: 0, dur: 3 },
   { id: "poison", n: "Poisoned", ic: "☠️", dmg: 6, atk: 0, spd: -1, wit: 0, dur: 3 },
   { id: "burn", n: "Burning", ic: "🔥", dmg: 8, atk: 0, spd: 0, wit: 0, dur: 2 },
-  { id: "stun", n: "Stunned", ic: "😵", dmg: 0, atk: -3, spd: -3, wit: 0, dur: 1 },
+  { id: "stun", n: "Stunned", ic: "😵", dmg: 0, atk: -3, spd: -3, wit: 0, dur: 2 },
   { id: "inspire", n: "Inspired", ic: "✨", dmg: 0, atk: 2, spd: 0, wit: 1, dur: 3 },
   { id: "fear", n: "Frightened", ic: "😨", dmg: 0, atk: -2, spd: 0, wit: 0, dur: 2 },
   { id: "regen", n: "Regenerating", ic: "💚", dmg: -5, atk: 0, spd: 0, wit: 0, dur: 3 },
@@ -1187,7 +1204,7 @@ function pair(a, b, L) {
     }
     if (!BAN && rel !== "lover" && chance(.1 + (rel ? .15 : 0))) {
       a.g = gid++;
-      L.push([`${N(a)} argues with ${N(b)} and walks off alone.`, "h", "💢"]);
+      a.left = true; L.push([`${N(a)} argues with ${N(b)} and walks off alone.`, "h", "💢"]);
       return;
     }
     gainF(a, 3); gainF(b, 3);
@@ -1200,7 +1217,7 @@ function pair(a, b, L) {
     return;
   }
   const ap = .3 + (md(a.cha) + md(b.cha)) * .015 + (tsum(a, "ally") + tsum(b, "ally")) / 200 + (fac ? .2 : 0);
-  if (!BAN && chance(Math.max(0, Math.min(.85, ap)))) {
+  if (!BAN && !a.left && !b.left && chance(Math.max(0, Math.min(.85, ap)))) {
     const sa = gsz(a.g), sb = gsz(b.g);
     if (!(sa > 1 && sb > 1) || chance(.4)) {
       const j = joinG(a, b);
@@ -1220,7 +1237,7 @@ const fxList = k => [...(k === "s" ? SFX : k === "d" ? DFX : ZFX),
 const describe = x => TF.filter(([k]) => x[k]).map(([k]) => `${k} ${sg(x[k])}`).join(", ") || "no modifiers";
 const extra = (p, i) => `
   <div class="stats">
-    <label title="Same-faction contestants coordinate better">🏷 Faction<input class="nm fac" maxlength="20" data-fac="${i}" value="${esc(p.fac)}" placeholder="none"></label>
+    <span class="meta mhp" title="Max HP = 50 + 5 x CON">❤ Max HP ${50 + 5 * p.con}</span><label title="Same-faction contestants coordinate better">🏷 Faction<input class="nm fac" maxlength="20" data-fac="${i}" value="${esc(p.fac)}" placeholder="none"></label>
     <label title="Job">💼 Job<select data-job="${i}"><option value="">None</option>${TRAITS.filter(x => x.kind === "job").map(x => `<option value="${esc(x.id)}"${p.job === x.id ? " selected" : ""}>${esc(x.ic + " " + x.n)}</option>`).join("")}</select></label>
   </div>
   <div class="tchips">${TRAITS.filter(x => x.kind !== "job").map(x => `<label class="tc" title="${esc(describe(x))}"><input type="checkbox" data-tr="${esc(x.id)}" data-i="${i}"${p.traits.includes(x.id) ? " checked" : ""}>${esc(x.ic + " " + x.n)}</label>`).join("")}</div>`;
