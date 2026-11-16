@@ -20,6 +20,27 @@ const rnd = n => Math.floor(rng() * n);
 const pick = a => a[rnd(a.length)];
 const chance = p => rng() < p;
 
+function pickW(ev, t) {
+  let total = 0;
+  for (const e of ev) {
+    let c = e.ch ?? 100;
+    if (t && (e.fx === "hurt" || e.fx === "die" || e.fx.startsWith("st:"))) {
+      c *= Math.max(0.1, 1 - md(t.wis) * 0.05 - tsum(t, "wit") * 0.02); // Wits reduces bad events
+    }
+    total += c;
+  }
+  let r = rng() * total;
+  for (const e of ev) {
+    let c = e.ch ?? 100;
+    if (t && (e.fx === "hurt" || e.fx === "die" || e.fx.startsWith("st:"))) {
+      c *= Math.max(0.1, 1 - md(t.wis) * 0.05 - tsum(t, "wit") * 0.02);
+    }
+    r -= c;
+    if (r <= 0) return e;
+  }
+  return ev[ev.length - 1];
+}
+
 const shuf = a => {
   for (let i = a.length - 1; i > 0; i--) {
     const j = rnd(i + 1);
@@ -58,12 +79,13 @@ const newSeed = () => {
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const col = j => `hsl(${(j * 47) % 360} 60% 55%)`;
 
-let GN = {}, tc = 0, BAN = false, NOB = false;
-let P = [], TN = [], T = [], TM = [], R = 0, dead = [], pend = [], timer = null, done = false, gid = 1000, M = "one", SEED = 0, THEME = "auto";
+let GN = {}, tc = 0, BAN = false, NOB = false, LOCKLEAVE = false;
+let P = [], TN = [], T = [], TM = [], R = 0, dead = [], pend = [], done = false, gid = 1000, M = "one", SEED = 0, THEME = "auto";
 let OPEN = new Set(), OPENR = new Set(), SHOWALL = false;
+let ENDGAME = false, ENDGAME_ANNOUNCED = false;
+let currentBg = "";
 
 /* ---------- stats and inventory ---------- */
-/* [key, icon, label, short label] */
 const STATS = [
   ["str", "💪", "Strength: melee power", "STR"],
   ["dex", "🏃", "Dexterity: speed and escaping", "DEX"],
@@ -86,7 +108,7 @@ const SR = {
 const DEFS = { hp: 100, water: 5, food: 40, bottle: 0, ration: 0, kit: 0 };
 
 const clampS = (k, v) => Math.max(SR[k][0], Math.min(SR[k][1], Math.round(+v || 0)));
-const r3 = () => 3 + rnd(6) + rnd(6) + rnd(6); /* 3d6, like the tabletop */
+const r3 = () => 3 + rnd(6) + rnd(6) + rnd(6);
 const rcombat = () => ({ str: r3(), dex: r3(), con: r3(), int: r3(), wis: r3(), cha: r3() });
 
 function rname() {
@@ -104,11 +126,15 @@ function save() {
   if (nosave) return;
   try {
     localStorage.setItem(KEY, JSON.stringify({
-      ver: 13, P, TN, SOLO, DUO, DIS, TRAITS, STATUS, REL, theme: THEME, cnt: $("#cnt").value,
+      ver: 14, P, TN, SOLO, DUO, DIS, TRAITS, STATUS, REL, theme: THEME, cnt: $("#cnt").value,
       size: $("#size").value, mode: $("#mode").value, ban: $("#ban").checked,
-      nob: $("#nob").checked, dim: $("#dim").value, seed: $("#seed").value
+      nob: $("#nob").checked, lockleave: $("#lockleave").checked, mgs: $("#mgs").value,
+      endgame: $("#endgame").value, dim: $("#dim").value, seed: $("#seed").value,
+      bg: currentBg
     }));
-  } catch (e) {}
+  } catch (e) {
+    console.warn("Could not save data. LocalStorage might be full.", e);
+  }
 }
 
 const saveSoon = () => {
@@ -122,7 +148,7 @@ function load() {
   try {
     const d = JSON.parse(localStorage.getItem(KEY) || "null");
     if (!d || typeof d !== "object") return;
-    const mig = d.ver < 12; /* older saves: keep the roster, adopt the new food/water model, use the new default events */
+    const mig = d.ver < 12;
     
     if (Array.isArray(d.TN)) TN = d.TN.map(x => String(x).slice(0, 24));
     
@@ -155,6 +181,7 @@ function load() {
           fx: String(e.fx || "none"),
           n: Math.max(0, Math.min(48, +e.n || 0)),
           ic: String(e.ic || "❓").slice(0, 8),
+          ch: Math.max(0, Math.min(100, e.ch === undefined ? 100 : +e.ch)),
           on: !!e.on
         })) 
       : def;
@@ -169,10 +196,16 @@ function load() {
     if (d.cnt) $("#cnt").value = d.cnt;
     if (d.size) $("#size").value = d.size;
     if (d.mode) $("#mode").value = d.mode;
+    if (d.mgs) $("#mgs").value = d.mgs;
+    if (d.endgame) $("#endgame").value = d.endgame;
     $("#ban").checked = !!d.ban;
     $("#nob").checked = !!d.nob;
+    $("#lockleave").checked = !!d.lockleave;
     if (d.dim !== undefined) $("#dim").value = d.dim;
     if (typeof d.seed === "string") $("#seed").value = d.seed.slice(0, 24);
+    if (typeof d.bg === "string" && d.bg.startsWith("data:image")) {
+      setBg(d.bg);
+    }
     loadNew(d);
   } catch (e) {}
 }
@@ -180,7 +213,7 @@ function load() {
 function sync() {
   const n = cntN();
   $("#cnt").value = n;
-  while (P.length < n) P.push(newP()); /* extra entries are kept (not deleted) if the count is lowered */
+  while (P.length < n) P.push(newP());
   drawSetup();
 }
 
@@ -249,7 +282,6 @@ function drawSetup() {
   saveSoon();
 }
 
-/* renaming a team only relabels the dropdown options; no re-render, so photos don't reload */
 function updOpts() {
   document.querySelectorAll("#teams select[data-t]").forEach(s => 
     [...s.options].forEach(o => {
@@ -378,6 +410,13 @@ $("#theme").onclick = () => {
   saveSoon();
 };
 
+function updModeUI() {
+  const grp = $("#mode").value === "grp";
+  $("#mgsWrap").hidden = !grp;
+  $("#egWrap").hidden = grp;
+}
+$("#mode").onchange = updModeUI;
+
 $("#setup").addEventListener("change", saveSoon);
 $("#setup").addEventListener("input", saveSoon);
 
@@ -389,9 +428,78 @@ $("#wipe").onclick = () => {
   location.reload();
 };
 
+/* ---------- Import / Export ---------- */
+$("#expBtn").onclick = () => {
+  const data = {
+    ver: 14,
+    P: P.slice(0, cntN()),
+    TN, SOLO, DUO, DIS, TRAITS, STATUS, REL,
+    cnt: $("#cnt").value, size: $("#size").value, mode: $("#mode").value,
+    ban: $("#ban").checked, nob: $("#nob").checked, lockleave: $("#lockleave").checked,
+    mgs: $("#mgs").value, endgame: $("#endgame").value
+  };
+  
+  const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(b);
+  a.download = `bloodbath-setup-${Date.now()}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+$("#impBtn").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (!f) return;
+  
+  const r = new FileReader();
+  r.onload = () => {
+    try {
+      const d = JSON.parse(r.result);
+      if (!d || typeof d !== "object" || !Array.isArray(d.P)) {
+        throw new Error("Invalid file format.");
+      }
+
+      if (Array.isArray(d.TN)) TN = d.TN;
+      if (Array.isArray(d.SOLO)) SOLO = d.SOLO;
+      if (Array.isArray(d.DUO)) DUO = d.DUO;
+      if (Array.isArray(d.DIS)) DIS = d.DIS;
+      if (Array.isArray(d.TRAITS)) TRAITS = d.TRAITS;
+      if (Array.isArray(d.STATUS)) STATUS = d.STATUS;
+      if (Array.isArray(d.REL)) REL = d.REL;
+
+      if (d.cnt) $("#cnt").value = d.cnt;
+      if (d.size) $("#size").value = d.size;
+      if (d.mode) $("#mode").value = d.mode;
+      if (d.mgs) $("#mgs").value = d.mgs;
+      if (d.endgame) $("#endgame").value = d.endgame;
+      $("#ban").checked = !!d.ban;
+      $("#nob").checked = !!d.nob;
+      $("#lockleave").checked = !!d.lockleave;
+
+      P = d.P.map(p => ({ ...newP(), ...p }));
+      
+      sync();
+      updModeUI();
+      drawEv();
+      drawTSR();
+      saveSoon();
+      
+      alert("Setup imported successfully!");
+    } catch (err) {
+      alert("Failed to import file: " + err.message);
+      console.error(err);
+    }
+    e.target.value = "";
+  };
+  r.readAsText(f);
+});
+
 /* ---------- match ---------- */
+let PG = [], PI = 0, VIEW_SNAPSHOT = null;
+
 function start(sd) {
-  stopAuto();
   const raw = $("#seed").value.trim();
   SEED = sd || (raw ? (/^\d{1,9}$/.test(raw) ? +raw : hs(raw)) : newSeed());
   rng = mb(SEED);
@@ -403,21 +511,21 @@ function start(sd) {
     atk: Math.max(1, Math.min(10, 5 + md(p.str))), spd: Math.max(1, Math.min(10, 5 + md(p.dex))), wit: Math.max(1, Math.min(10, 5 + md(p.wis))),
     traits: [...p.traits], job: p.job, fac: p.fac.trim(), fk: p.fac.trim().toLowerCase(), fx: [], k: 0, dmg: 0, alive: true,
     w: p.weapon || null, water: p.water, food: p.food, bottle: p.bottle,
-    ration: p.ration, kit: p.kit, inf: false, ex: false, dz: false,
+    ration: p.ration, kit: p.kit, inf: false, ex: false, dz: false, hg: false,
     ally: null, round: undefined, why: ""
   }));
   
   TM = TN.map((n, j) => ({ n: n.trim() || "Team " + (j + 1) }));
-  R = 0; dead = []; pend = []; done = false; gid = 1000;
+  R = 0; dead = []; pend = []; done = false; gid = 1000; ENDGAME = false; ENDGAME_ANNOUNCED = false;
   RT = REL.filter(r => r.a < T.length && r.b < T.length).map(r => ({ ...r })); XL = []; POOL = [];
-  M = $("#mode").value; BAN = $("#ban").checked; NOB = $("#nob").checked;
+  M = $("#mode").value; BAN = $("#ban").checked; NOB = $("#nob").checked; LOCKLEAVE = $("#lockleave").checked;
   GN = {}; TM.forEach((m, j) => GN[j] = { n: m.n }); tc = TM.length;
   
   OPENR = new Set(); SHOWALL = false; $("#dtog").textContent = "Show details";
   $("#setup").hidden = true; $("#arena").hidden = false;
-  PG = []; PI = 0; showPage(false);
+  PG = []; PI = 0; VIEW_SNAPSHOT = null; showPage(false);
   
-  $("#next").disabled = $("#spB").disabled = $("#dsB").disabled = $("#auto").disabled = false;
+  $("#next").disabled = $("#spB").disabled = $("#dsB").disabled = false;
   $("#dsT").innerHTML = '<option value="r">Random disaster</option>' + DIS.map((d, i) => `<option value="${i}">${esc(d.ic + " " + d.t.slice(0, 38))}</option>`).join("");
   
   render();
@@ -426,7 +534,6 @@ function start(sd) {
 const alive = () => T.filter(t => t.alive);
 const gainW = (t, x) => { t.water = Math.min(12, t.water + x); };
 const gainF = (t, x) => { t.food = Math.min(99, t.food + x); };
-/* everything health-related is a share of the contestant's own max HP (50 + 5 x CON) */
 const pct = (t, p) => Math.round(t.mhp * p);
 const heal = (t, p) => { t.hp = Math.min(t.mhp, t.hp + pct(t, p)); };
 
@@ -440,7 +547,6 @@ function die(t, by, why) {
   griefOf(t, by);
 }
 
-/* anyone at 0 HP or below who is still marked alive dies here */
 const settle = (L, ...ts) => ts.forEach(t => {
   if (t.alive && t.hp <= 0) {
     die(t);
@@ -450,7 +556,11 @@ const settle = (L, ...ts) => ts.forEach(t => {
 
 const cannon = f => f.length ? [`${f.length} cannon shot${f.length > 1 ? "s" : ""}: ${f.map(N).join(", ")}.`, "c"] : null;
 const N = t => "\u0001" + t.id + "\u0002";
-const fmt = x => esc(x).replace(/\u0001(\d+)\u0002/g, (m, k) => `<b class="hl">${esc(T[k].n)}</b>`);
+const fmt = x => {
+  const s = String(x);
+  if (s.startsWith("<div class='announce'>")) return s;
+  return esc(s).replace(/\u0001(\d+)\u0002/g, (m, k) => `<b class="hl">${esc(T[k].n)}</b>`);
+};
 const ids = x => [...new Set([...x.matchAll(/\u0001(\d+)\u0002/g)].map(m => +m[1]))];
 
 const ICONS = [
@@ -461,7 +571,7 @@ const ICONS = [
   [/slips on a ridge/, "🩸"], [/pit trap/, "🩸"], [/does not climb/, "💀"], [/snare/, "⚠️"],
   [/watches a rival/, "👁️"], [/hides in the reeds/, "🌿"], [/storm wall/, "⛈️"],
   [/flood siren|swept away|barely escapes/, "🌊"], [/fractures/, "💥"], [/hunger/, "🥀"],
-  [/thirst/, "🥵"], [/bleeds out/, "💀"], [/cannon/, "💀"], [/Nobody falls/, "🕊️"]
+  [/thirst/, "🥵"], [/bleeds out/, "💀"], [/cannon/, "💀"], [/Nobody falls/, "🕊️"], [/Gamemakers/, "🚨"]
 ];
 
 const icon = x => {
@@ -484,8 +594,8 @@ function infect(t, L) {
 }
 
 function fight(a, b, L, ca, cb) {
-  const p = t => atk(t) + (t.w ? 3 : 0) + rnd(7) + 4 * t.hp / t.mhp - (t.water <= 0 ? 3 : 0) /* dehydrated fighters are weaker */
-    + (t === a && ca ? atk(ca) * .6 : 0) + (t === b && cb ? atk(cb) * .6 : 0); /* joint attack bonus */
+  const p = t => atk(t) + (t.w ? 3 : 0) + rnd(7) + 4 * t.hp / t.mhp - (t.water <= 0 ? 3 : 0)
+    + (t === a && ca ? atk(ca) * .6 : 0) + (t === b && cb ? atk(cb) * .6 : 0);
   let w = a, l = b;
   if (p(b) > p(a)) { w = b; l = a; }
   a.ex = b.ex = true;
@@ -497,13 +607,12 @@ function fight(a, b, L, ca, cb) {
     return;
   }
   
-  /* speed: the loser may break away before the blow lands (about 6% to 24% for stats 1 to 10) */
   if (chance(Math.max(.03, Math.min(.5, .10 + .03 * (spd(l) - spd(w)) + .10 * (1 - l.hp / l.mhp))))) {
     L.push([`${N(l)} breaks away from ${N(w)} and escapes.`, "h", "💨"]);
     return;
   }
   
-  const roll = Math.round(12 + 2.5 * atk(w) + (w.w ? 8 : 0) + rnd(16)), taken = Math.max(5, roll - 2 * md(l.con)); /* STR and weapon deal it, CON soaks it */
+  const roll = Math.round(12 + 2.5 * atk(w) + (w.w ? 8 : 0) + rnd(16)), taken = Math.max(5, roll - 2 * md(l.con));
   w.dmg += Math.min(taken, Math.max(0, l.hp));
   l.hp -= taken;
   const how = w.w ? `with a ${w.w}` : "with bare hands";
@@ -575,7 +684,7 @@ let SOLO = JSON.parse(JSON.stringify(DEF_SOLO)), DUO = JSON.parse(JSON.stringify
 const fill = (x, a, b, w) => x.replace(/\{a\}/g, N(a)).replace(/\{b\}/g, b ? N(b) : "someone").replace(/\{w\}/g, w || "weapon");
 
 function solo(a, L) {
-  if (!BAN && T.some(t => t.alive && t !== a && t.g === a.g) && chance(.08)) {
+  if (!BAN && !(LOCKLEAVE && a.left) && T.some(t => t.alive && t !== a && t.g === a.g) && (ENDGAME || chance(.08))) {
     a.g = gid++;
     a.left = true; L.push([`${N(a)} slips away from the group in the night and goes solo.`, "h", "🚶"]);
     return;
@@ -587,9 +696,8 @@ function solo(a, L) {
     return;
   }
   
-  let e = pick(ev);
-  /* wits: a sharp contestant may sidestep a harmful event and draw another one (4% per point) */
-  if ((e.fx === "hurt" || e.fx === "die") && chance(wit(a) * .04)) e = pick(ev);
+  let e = pickW(ev, a);
+  if ((e.fx === "hurt" || e.fx === "die") && chance(wit(a) * .04)) e = pickW(ev, a);
   
   let w = null;
   if (e.fx === "weapon") a.w = w = pick(WPN);
@@ -619,7 +727,6 @@ function solo(a, L) {
 }
 
 function runDuo(e, a, b, L) {
-  /* wits: the target may wake in time and stop a theft (5% per point, max 60%) */
   if (e.fx === "steal" && chance(Math.min(.6, wit(b) * .05))) {
     L.push([`${N(a)} tries to take supplies from ${N(b)}, but ${N(b)} wakes in time.`, "h", "🎒"]);
     return;
@@ -647,8 +754,6 @@ function runDuo(e, a, b, L) {
   settle(L, a, b);
 }
 
-let PG = [], PI = 0;
-
 function showPage(live) {
   const p = PG[PI];
   $("#log").setAttribute("aria-live", live ? "polite" : "off");
@@ -659,11 +764,20 @@ function showPage(live) {
   $("#pgl").textContent = p ? `${p.h} · ${PI + 1} of ${PG.length}` : "No rounds yet";
   $("#pp").disabled = PI <= 0;
   $("#pn").disabled = $("#pl").disabled = PI >= PG.length - 1;
+  
+  VIEW_SNAPSHOT = (!live && p && p.snap) ? p.snap : null;
+  render();
 }
 
 function addLog(h, L, raw, txt) {
   const f = PI >= PG.length - 1;
-  PG.push({ h, L, raw, txt });
+  const snap = T.map(t => ({
+    alive: t.alive, hp: t.hp, k: t.k, dmg: t.dmg, fx: t.fx.map(x => ({...x})),
+    water: t.water, food: t.food, bottle: t.bottle, ration: t.ration, kit: t.kit,
+    inf: t.inf, dz: t.dz, hg: t.hg, g: t.g, left: t.left, round: t.round, why: t.why,
+    w: t.w
+  }));
+  PG.push({ h, L, raw, txt, snap });
   if (f) PI = PG.length - 1;
   showPage(true);
 }
@@ -684,7 +798,6 @@ $("#dtog").onclick = () => {
   render();
 };
 
-/* sponsor gifts and manual disasters are deliberately unlimited */
 function sponsor() {
   const t = T[+$("#spT").value];
   if (done || !t || !t.alive) return;
@@ -710,6 +823,7 @@ function drawEv() {
         ? `<input class="nm et${BADTOK.test(e.v || "") ? " bad" : ""}" maxlength="160" data-f="v" value="${esc(e.v)}" placeholder="Victim line, e.g. {a} is caught" aria-label="Victim line">
            <input class="nm ei" type="number" min="0" max="48" data-f="n" value="${e.n}" aria-label="How many people">` 
         : ""}
+      <label class="nl" title="Base chance (%)">%<input type="number" min="0" max="100" data-f="ch" value="${e.ch ?? 100}"></label>
       <select data-f="fx" aria-label="Effect">
         ${fxList(k).map(([v, l]) => `<option value="${v}"${e.fx === v ? " selected" : ""}>${l}</option>`).join("")}
       </select>
@@ -727,10 +841,10 @@ function evh(e) {
   const r = e.target.closest(".erow"), f = e.target.dataset.f;
   if (!r || !f) return;
   
-  const v = f === "on" ? e.target.checked : f === "n" ? Math.max(0, Math.min(48, Math.round(+e.target.value || 0))) : e.target.value;
+  const v = f === "on" ? e.target.checked : f === "n" || f === "ch" ? Math.max(0, Math.min(f === "ch" ? 100 : 48, Math.round(+e.target.value || 0))) : e.target.value;
   LST(r.dataset.k)[+r.dataset.i][f] = v;
   
-  if (f === "n" && e.type === "change") e.target.value = v;
+  if ((f === "n" || f === "ch") && e.type === "change") e.target.value = v;
   if (f === "t" || f === "v") {
     const bad = BADTOK.test(v);
     e.target.classList.toggle("bad", bad);
@@ -738,13 +852,18 @@ function evh(e) {
   }
 }
 
-$("#events").addEventListener("input", evh);
-$("#events").addEventListener("change", evh);
-$("#events").addEventListener("click", e => {
-  const r = e.target.closest(".erow");
-  if (r && e.target.dataset.del !== undefined) {
-    LST(r.dataset.k).splice(+r.dataset.i, 1);
-    drawEv();
+["#evS", "#evD", "#evZ"].forEach(sel => {
+  const el = $(sel);
+  if (el) {
+    el.addEventListener("input", evh);
+    el.addEventListener("change", evh);
+    el.addEventListener("click", e => {
+      const r = e.target.closest(".erow");
+      if (r && e.target.dataset.del !== undefined) {
+        LST(r.dataset.k).splice(+r.dataset.i, 1);
+        drawEv();
+      }
+    });
   }
 });
 
@@ -799,7 +918,7 @@ function runDisaster(d, L) {
   };
   
   v.forEach(t => {
-    if (d.fx === "hurtrand") t.hp -= pct(t, chance(.3 + .04 * md(t.dex)) ? .15 : .30); /* a good DEX save halves it */
+    if (d.fx === "hurtrand") t.hp -= pct(t, chance(.3 + .04 * md(t.dex)) ? .15 : .30);
     else if (!d.fx.startsWith("st:")) t.hp = 0;
     L.push([fill(d.v || "{a} is caught up in it.", t), d.fx === "hurtrand" || d.fx.startsWith("st:") ? "h" : "k", d.ic]);
     out(t);
@@ -819,7 +938,7 @@ function runDisaster(d, L) {
 function hazard(L) {
   const ds = DIS.filter(e => e.on);
   if (alive().length < 2 || !ds.length) return;
-  runDisaster(pick(ds), L);
+  runDisaster(pickW(ds), L);
 }
 
 function drop(h, L) {
@@ -841,14 +960,12 @@ function disaster() {
   runDisaster(d, L);
   L.push(...XL.splice(0));
   const c = cannon(pend.splice(0));
-  if (c) L.push(c); /* manual disasters report their own cannon shots */
+  if (c) L.push(c);
   drop("Disaster", L);
   if (over()) finish();
   render();
 }
 
-/* Each round is half a day. Water is the fast clock, food the slow one.
-   Fighting, wounds and fever all burn both faster. Supplies are used automatically. */
 function upkeep(t, L) {
   const hurt = t.hp < t.mhp * .5;
   t.water -= 1 + (t.ex ? .75 : 0) + (hurt ? .5 : 0) + (t.inf ? .5 : 0);
@@ -865,7 +982,7 @@ function upkeep(t, L) {
   
   if (t.water <= 0) {
     t.water = 0; t.hp -= pct(t, Math.max(.12, .30 - .03 * md(t.con)));
-    if (!t.dz) {
+    if (t.hp > 0 && !t.dz) {
       t.dz = true;
       L.push([`${N(t)} is badly dehydrated and growing weak.`, "h", "🥵"]);
     }
@@ -874,7 +991,17 @@ function upkeep(t, L) {
   }
   
   t.fx = t.fx.filter(s => { const d = SD(s.id); if (!d) return false; t.hp = Math.min(t.mhp, t.hp - Math.round(t.mhp * d.dmg / 100)); s.left--; return s.left > 0; });
-  if (t.food <= 0) { t.food = 0; t.hp -= pct(t, Math.max(.02, .08 - .01 * md(t.con))); }
+  
+  if (t.food <= 0) { 
+    t.food = 0; 
+    t.hp -= pct(t, Math.max(.02, .08 - .01 * md(t.con))); 
+    if (t.hp > 0 && !t.hg) {
+      t.hg = true;
+      L.push([`${N(t)} is starving and losing strength.`, "h", "🥀"]);
+    }
+  } else {
+    t.hg = false;
+  }
   
   if (t.hp <= 0 && t.alive) {
     const why = t.water <= 0 ? "thirst" : t.food <= 0 ? "hunger" : t.inf ? "infection" : "wounds";
@@ -892,19 +1019,37 @@ function step() {
   if (done) return;
   R++;
   const L = [];
-  const a0 = alive();
   
-  if (M === "one" && a0.length > 1 && new Set(a0.map(t => t.g)).size === 1) {
-    a0.forEach(t => t.g = gid++);
-    L.push(["The last alliance fractures. Only one can walk out.", "c"]);
+  if (M === "one" && alive().length > 1) {
+    const threshold = +$("#endgame").value || 5;
+    const groups = new Set(alive().map(t => t.g));
+    
+    if (!ENDGAME && (alive().length <= threshold || groups.size === 1)) {
+      ENDGAME = true;
+      ENDGAME_ANNOUNCED = true;
+      L.push(["<div class='announce'>The endgame approaches. Alliances will fracture. Only one can survive.</div>", "c", "🚨"]);
+    }
+    
+    if (ENDGAME) {
+      const remaining = new Set(alive().map(t => t.g));
+      if (remaining.size < alive().length) {
+        if (ENDGAME_ANNOUNCED) {
+          ENDGAME_ANNOUNCED = false;
+        } else {
+          L.push(["<div class='announce'>Alliances are forbidden. The Gamemakers strike the remaining teams.</div>", "c", "💀"]);
+          const ds = DIS.filter(e => e.on);
+          if (ds.length) runDisaster(pickW(ds), L);
+        }
+      }
+    }
   }
   
   alive().forEach(t => {
-    if (chance(FORAGE_BASE + wit(t) * FORAGE_WIT)) gainW(t, 2); /* quiet scavenging: wits help find water */
+    if (chance(FORAGE_BASE + wit(t) * FORAGE_WIT)) gainW(t, 2);
     upkeep(t, L);
   });
   
-  alive().forEach(t => { /* jobs like Medic patch up wounded groupmates */
+  alive().forEach(t => {
     const h = tsum(t, "heal");
     if (h > 0 && chance(h / 100)) {
       const w = alive().filter(o => o !== t && o.g === t.g && o.hp < o.mhp * .7);
@@ -920,7 +1065,7 @@ function step() {
       let i = rnd(pool.length);
       const m = pool.findIndex(x => x.g === a.g);
       if (m >= 0 && chance(.5)) i = m;
-      const r = pool.findIndex(x => relOf(a, x)); /* lovers seek each other, enemies and rivals hunt */
+      const r = pool.findIndex(x => relOf(a, x));
       if (r >= 0 && chance(.4)) i = r;
       b = pool.splice(i, 1)[0];
     }
@@ -940,28 +1085,9 @@ function step() {
 
 const FORAGE_BASE = .12, FORAGE_WIT = .025;
 
-function stopAuto() {
-  if (timer) { clearInterval(timer); timer = null; }
-  $("#auto").textContent = "▶ Auto";
-}
-
-function toggleAuto() {
-  if (timer) { stopAuto(); return; }
-  if (done) return;
-  $("#auto").textContent = "⏸ Pause";
-  timer = setInterval(() => {
-    step();
-    if (done) stopAuto();
-  }, +$("#aspd").value);
-}
-
-$("#auto").onclick = toggleAuto;
-$("#aspd").onchange = () => { if (timer) { stopAuto(); toggleAuto(); } };
-
 function finish() {
   done = true;
-  stopAuto();
-  $("#next").disabled = $("#spB").disabled = $("#dsB").disabled = $("#auto").disabled = true;
+  $("#next").disabled = $("#spB").disabled = $("#dsB").disabled = true;
   
   const al = alive().sort((x, y) => y.k - x.k), order = [...al, ...[...dead].reverse()];
   const info = t => `${t.k} kill${t.k === 1 ? "" : "s"} · ${t.dmg} damage · ${t.alive ? "survived" : "out in round " + t.round + " (" + t.why + ")"}${t.team >= 0 ? " · started with " + TM[t.team].n : " · started solo"}`;
@@ -979,12 +1105,13 @@ function finish() {
 }
 
 function render() {
-  const al = alive(), gs = {};
+  const tList = VIEW_SNAPSHOT ? T.map((orig, i) => ({ ...orig, ...VIEW_SNAPSHOT[i] })) : T;
+  const al = tList.filter(t => t.alive), gs = {};
   al.forEach(t => (gs[t.g] = gs[t.g] || []).push(t));
   
   const teams = Object.keys(gs).filter(g => gs[g].length > 1), solos = al.filter(t => gs[t.g].length === 1);
+  const deadList = tList.filter(t => !t.alive);
   
-  /* stats and inventory stay hidden until a contestant is clicked (or "Show details" is on) */
   const detail = t => t.alive 
     ? `<span class="meta dt">${abil(t)}</span><span class="meta dt">⚔${atk(t)} 💨${spd(t)} 🧠${wit(t)} · ❤${Math.max(0, Math.round(t.hp))}/${t.mhp} · 💧${+t.water.toFixed(1)} 🍖${Math.round(t.food)}${t.inf ? " · 🦠 infected" : ""}${t.left ? " · left a team" : ""}</span><span class="meta dt">🍶${t.bottle} 🥫${t.ration} 🩹${t.kit}</span>` 
     : `<span class="meta dt">Out in round ${t.round}: ${esc(t.why)}</span>`;
@@ -1008,12 +1135,15 @@ function render() {
   
   $("#roster").innerHTML = teams.map(g => blk(esc((GN[g] || { n: "Team" }).n), col(+g), gs[g])).join("") + 
     (solos.length ? blk("Solo", "var(--line)", solos) : "") + 
-    (dead.length ? blk("Fallen", "var(--dead)", [...dead].reverse(), "out") : "");
+    (deadList.length ? blk("Fallen", "var(--dead)", [...deadList].reverse(), "out") : "");
     
-  $("#stat").textContent = `Round ${R} · ${al.length} of ${T.length} alive · seed ${SEED}`;
+  $("#stat").textContent = VIEW_SNAPSHOT 
+    ? `Viewing past round · ${al.length} were alive` 
+    : `Round ${R} · ${alive().length} of ${T.length} alive · seed ${SEED}`;
   
+  const realAl = alive();
   const cur = $("#spT").value;
-  $("#spT").innerHTML = al.map(t => `<option value="${t.id}">${esc(t.n)}</option>`).join("");
+  $("#spT").innerHTML = realAl.map(t => `<option value="${t.id}">${esc(t.n)}</option>`).join("");
   if (cur && T[+cur] && T[+cur].alive) $("#spT").value = cur;
 }
 
@@ -1041,7 +1171,7 @@ function exportLog() {
   PG.forEach(p => {
     out.push(`## ${p.h}`);
     if (p.txt) out.push(p.txt);
-    else p.L.forEach(([t]) => out.push("- " + nm(t)));
+    else p.L.forEach(([t]) => out.push("- " + nm(t.replace(/<[^>]+>/g, ''))));
     out.push("");
   });
   const b = new Blob([out.join("\n")], { type: "text/markdown" }), a = document.createElement("a");
@@ -1059,12 +1189,14 @@ $("#next").onclick = step;
 $("#dsB").onclick = disaster;
 $("#dl").onclick = exportLog;
 $("#replay").onclick = () => start(SEED);
-$("#reset").onclick = () => { stopAuto(); rng = Math.random; $("#arena").hidden = true; $("#setup").hidden = false; };
+$("#reset").onclick = () => { rng = Math.random; $("#arena").hidden = true; $("#setup").hidden = false; };
 
 function setBg(u) {
+  currentBg = u;
   const r = document.documentElement;
   r.style.setProperty("--bgimg", u ? `url(${u})` : "none");
   r.classList.toggle("hasbg", !!u);
+  saveSoon();
 }
 
 $("#dim").oninput = e => { document.documentElement.style.setProperty("--dim", e.target.value); saveSoon(); };
@@ -1131,13 +1263,15 @@ const wit = t => Math.max(0, t.wit + tsum(t, "wit") + ssum(t, "wit"));
 const gsz = g => T.filter(t => t.alive && t.g === g).length;
 
 function joinG(a, b) {
-  const ag = a.g, bg = b.g, sa = gsz(ag), sb = gsz(bg), to = (sa === 1 && sb > 1) ? bg : ag, from = to === ag ? bg : ag;
+  const max = +$("#mgs").value || 3;
+  const sa = gsz(a.g), sb = gsz(b.g);
+  if (sa + sb > max) return null;
+  const ag = a.g, bg = b.g, to = (sa === 1 && sb > 1) ? bg : ag, from = to === ag ? bg : ag;
   if (!GN[to]) GN[to] = { n: "Team " + (++tc) };
   T.forEach(t => { if (t.g === from) t.g = to; });
   return { nm: GN[to].n, fn: GN[from] ? GN[from].n : "another group" };
 }
 
-/* strongest bond wins: enemy, then rival, then lover */
 function relOf(a, b) {
   let r = null;
   for (const x of RT) {
@@ -1152,12 +1286,15 @@ function relOf(a, b) {
 function addStatus(t, id, L) {
   const d = SD(id);
   if (!d || !t.alive) return;
+  if (chance(Math.max(0, md(t.con) * 0.05))) {
+    L.push([`${N(t)} resists the ${d.n.toLowerCase()}.`, "a", "🛡️"]);
+    return;
+  }
   const s = t.fx.find(x => x.id === id);
   if (s) s.left = d.dur;
   else { t.fx.push({ id, left: d.dur }); L.push([`${N(t)} is ${d.n.toLowerCase()}.`, "h", d.ic]); }
 }
 
-/* a lover's death leaves the survivor grieving and hunting the killer */
 function griefOf(t, by) {
   RT.filter(r => r.type === "lover" && (r.a === t.id || r.b === t.id)).forEach(r => {
     const o = T[r.a === t.id ? r.b : r.a];
@@ -1169,9 +1306,8 @@ function griefOf(t, by) {
   });
 }
 
-/* joint attacks: a groupmate or faction mate may join a fight; Coordinated, jobs and a shared faction raise the odds */
 function assist(x, y) {
-  const i = POOL.findIndex(t => t.alive && t !== x && t !== y && (t.g === x.g || (x.fk && t.fk === x.fk)) && relOf(t, y) !== "lover" && relOf(t, x) !== "enemy");
+  const i = POOL.findIndex(t => t.alive && t !== x && t !== y && (!LOCKLEAVE || (!t.left && !x.left)) && (t.g === x.g || (x.fk && t.fk === x.fk)) && relOf(t, y) !== "lover" && relOf(t, x) !== "enemy");
   if (i < 0) return null;
   const c = POOL[i];
   const p = .08 + (tsum(x, "coord") + tsum(c, "coord")) / 100 + (md(x.int) + md(c.int)) * .01 + (x.fk && x.fk === c.fk ? .2 : 0) + (c.g === x.g ? .05 : 0);
@@ -1187,12 +1323,23 @@ function fightJ(a, b, L) {
 
 function pair(a, b, L) {
   const rel = relOf(a, b), same = a.g === b.g, fac = a.fk && a.fk === b.fk, bt = t => tsum(t, "betray");
+  const canJoin = t => !LOCKLEAVE || !t.left;
+  
   if (rel === "lover" && !same) {
-    if (BAN) { L.push([`${N(a)} and ${N(b)} lower their weapons and part ways.`, "a", "💞"]); return; }
+    if (BAN || ENDGAME || !canJoin(a) || !canJoin(b)) {
+      const lft = !canJoin(a) ? a : b;
+      L.push([`${N(a)} and ${N(b)} find each other, but ${N(lft)} will not rejoin a group.`, "a", "💞"]);
+      return;
+    }
     const j = joinG(a, b);
+    if (!j) {
+      L.push([`${N(a)} and ${N(b)} try to unite, but the group is full.`, "a", "💞"]);
+      return;
+    }
     L.push([`${N(a)} and ${N(b)} find each other and stay together as ${j.nm}.`, "a", "💞"]);
     return;
   }
+  
   if (same) {
     let p = .07 + (alive().length <= 6 ? .1 : 0) + Math.max(bt(a), bt(b)) / 100 - (fac ? .03 : 0);
     if (rel === "enemy") p += .35; else if (rel === "rival") p += .18; else if (rel === "lover") p *= .1;
@@ -1202,7 +1349,7 @@ function pair(a, b, L) {
       die(l, w);
       return;
     }
-    if (!BAN && rel !== "lover" && chance(.1 + (rel ? .15 : 0))) {
+    if (!BAN && (ENDGAME || (rel !== "lover" && chance(.1 + (rel ? .15 : 0))))) {
       a.g = gid++;
       a.left = true; L.push([`${N(a)} argues with ${N(b)} and walks off alone.`, "h", "💢"]);
       return;
@@ -1211,22 +1358,24 @@ function pair(a, b, L) {
     L.push([`${N(a)} and ${N(b)} share a meal and keep watch in turns.`, "a", rel === "lover" ? "💞" : "🍖"]);
     return;
   }
+  
   if (rel === "enemy" || (rel === "rival" && chance(.6))) {
     L.push([`${N(a)} and ${N(b)} meet, and the old grudge boils over.`, "h", "💢"]);
     fightJ(a, b, L);
     return;
   }
+  
   const ap = .3 + (md(a.cha) + md(b.cha)) * .015 + (tsum(a, "ally") + tsum(b, "ally")) / 200 + (fac ? .2 : 0);
-  if (!BAN && !a.left && !b.left && chance(Math.max(0, Math.min(.85, ap)))) {
+  if (!BAN && !ENDGAME && canJoin(a) && canJoin(b) && chance(Math.max(0, Math.min(.85, ap)))) {
     const sa = gsz(a.g), sb = gsz(b.g);
-    if (!(sa > 1 && sb > 1) || chance(.4)) {
+    if (sa + sb <= (+$("#mgs").value || 3) && (!(sa > 1 && sb > 1) || chance(.4))) {
       const j = joinG(a, b);
       L.push([sa === 1 && sb === 1 ? `${N(a)} and ${N(b)} form ${j.nm}.` : sa > 1 && sb > 1 ? `${j.nm} absorbs ${j.fn} after a truce.` : `${N(sb === 1 ? b : a)} joins ${j.nm}.`, "a", "🤝"]);
       return;
     }
   }
   const dv = DUO.filter(e => e.on);
-  if (dv.length && chance(.3)) { runDuo(pick(dv), a, b, L); return; }
+  if (dv.length && chance(.3)) { runDuo(pickW(dv, a), a, b, L); return; }
   fightJ(a, b, L);
 }
 
@@ -1283,16 +1432,22 @@ function tsh(e) {
   if (k === "t" && e.type === "change") drawPeople();
   saveSoon();
 }
-$("#tsr").addEventListener("input", tsh);
-$("#tsr").addEventListener("change", tsh);
-$("#tsr").addEventListener("click", e => {
-  const r = e.target.closest(".erow");
-  if (!r || e.target.dataset.del === undefined) return;
-  const k = r.dataset.k, i = +r.dataset.i, id = k === "t" ? TRAITS[i].id : null;
-  TSL(k).splice(i, 1);
-  if (id) P.forEach(p => { p.traits = p.traits.filter(x => x !== id); if (p.job === id) p.job = ""; });
-  drawTSR(); drawPeople(); saveSoon();
+
+["#evT", "#evX", "#evR"].forEach(sel => {
+  const el = $(sel);
+  if (!el) return;
+  el.addEventListener("input", tsh);
+  el.addEventListener("change", tsh);
+  el.addEventListener("click", e => {
+    const r = e.target.closest(".erow");
+    if (!r || e.target.dataset.del === undefined) return;
+    const k = r.dataset.k, i = +r.dataset.i, id = k === "t" ? TRAITS[i].id : null;
+    TSL(k).splice(i, 1);
+    if (id) P.forEach(p => { p.traits = p.traits.filter(x => x !== id); if (p.job === id) p.job = ""; });
+    drawTSR(); drawPeople(); saveSoon();
+  });
 });
+
 const addNew = (k, o) => () => { TSL(k).push(o()); drawTSR(); drawPeople(); saveSoon(); };
 $("#addT").onclick = addNew("t", () => ({ id: uid(), n: "New trait", ic: "⭐", kind: "trait", ...T0 }));
 $("#addJ").onclick = addNew("t", () => ({ id: uid(), n: "New job", ic: "💼", kind: "job", ...T0 }));
@@ -1332,8 +1487,10 @@ function loadNew(d) {
 }
 
 load();
+sync();                       
+updModeUI();
 document.documentElement.style.setProperty("--dim", $("#dim").value);
 applyTheme();
-drawEv();
-sync();
-drawTSR();
+try { drawEv(); } catch (e) { console.error("event editor:", e); }
+try { drawTSR(); } catch (e) { console.error("trait editor:", e); }
+try { drawPeople(); } catch (e) { console.error("people editor:", e); }

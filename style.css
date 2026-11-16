@@ -9,6 +9,7 @@
   --gold: #6cb0ff;
   box-sizing: border-box;
 }
+[hidden] { display: none !important; }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
@@ -350,3 +351,14 @@ ol { text-align: left; padding-left: 22px; }
 .tc input { margin: 0; }
 .nl { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--mute); }
 .erow .nl input { width: 62px; padding: 6px 8px; }
+.rd .announce {
+  color: #ff2222;
+  font-weight: bold;
+  font-size: 1.2em;
+  text-align: center;
+  padding: 10px;
+  border: 2px solid #ff2222;
+  border-radius: 6px;
+  background: rgba(255, 0, 0, 0.1);
+  margin: 10px 0;
+}

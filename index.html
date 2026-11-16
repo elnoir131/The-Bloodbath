@@ -37,6 +37,8 @@
             <option value="grp">Last group can share</option>
           </select>
         </label>
+        <label id="mgsWrap" hidden>Max group <input type="number" id="mgs" min="2" max="10" value="3" aria-label="Max group size"></label>
+        <label id="egWrap">Endgame alert at <input type="number" id="endgame" min="2" max="20" value="5" title="When this many players remain, alliances disband."></label>
         <button class="ghost" id="rnd">Randomize names</button>
         <button class="ghost" id="rst">Roll ability scores (3d6)</button>
         <button class="ghost" id="stg">Show all stats</button>
@@ -50,47 +52,70 @@
       <div id="teams"></div>
 
       <details class="evbox">
-        <summary><b>Rules and events</b></summary>
+        <summary><b>Optional rules</b></summary>
         <div class="bar">
           <label><input type="checkbox" id="ban"> Ban teaming (everyone plays solo, no alliances)</label>
           <label><input type="checkbox" id="nob"> Ban betrayal</label>
+          <label><input type="checkbox" id="lockleave"> Contestants who leave a team can never rejoin one</label>
         </div>
-        <p class="meta">Edit, disable, remove or add events. Use {a} and {b} for names and {w} for a weapon. Fights, alliances and betrayals are always built in.</p>
-        
-        <div id="events">
-          <h4>Solo events</h4>
-          <div id="evS"></div>
-          <button class="ghost" id="addS">Add solo event</button>
-          
-          <h4>Duo events</h4>
-          <div id="evD"></div>
-          <button class="ghost" id="addD">Add duo event</button>
-          
-          <h4>Disasters</h4>
-          <p class="meta">Enabled disasters strike at random. Any disaster can also be triggered by hand during a match.</p>
-          <div id="evZ"></div>
-          <button class="ghost" id="addZ">Add disaster</button> 
-          <button class="ghost" id="resetEv">Reset events</button>
-        </div>
-          <div id="tsr">
-            <h4>Traits and jobs</h4>
-            <p class="meta">Traits add modifiers to a contestant (up to 3 each); a job is one extra role with the same kind of modifiers. Coord raises joint-attack chance, betray raises betrayal chance, ally raises alliance chance, heal is a Medic-style chance to patch up a groupmate. Contestants in the same faction coordinate better.</p>
-            <div id="evT"></div>
-            <button class="ghost" id="addT">Add trait</button> <button class="ghost" id="addJ">Add job</button>
-            <h4>Status effects</h4>
-            <p class="meta">Statuses last a number of rounds. Use them from the event and disaster effect dropdowns, or let fights cause bleeding.</p>
-            <div id="evX"></div>
-            <button class="ghost" id="addX">Add status</button>
-            <h4>Relationships</h4>
-            <p class="meta">Lovers seek each other, join forces and grieve. Rivals and enemies hunt each other and make betrayal far more likely. Open this panel again after renaming contestants to refresh the names.</p>
-            <div id="evR"></div>
-            <button class="ghost" id="addR">Add relationship</button> <button class="ghost" id="rndR">Random relationships</button> <button class="ghost" id="resetTS">Reset traits, statuses and relationships</button>
-          </div>
+      </details>
 
+      <details class="evbox">
+        <summary><b>Solo events</b></summary>
+        <p class="meta">
+          <b>☑</b> Enable/disable · <b>Icon</b> and <b>Text</b> appear in the log · <b>%</b> is the chance weight (higher means more likely to happen, one event per contestant) · <b>Effect</b> determines what happens to the contestant. Use <b>{a}</b> for the contestant's name and <b>{w}</b> for the weapon name.
+        </p>
+        <div id="evS"></div>
+        <button class="ghost" id="addS">Add solo event</button>
+      </details>
+
+      <details class="evbox">
+        <summary><b>Duo events</b></summary>
+        <p class="meta">
+          Use <b>{a}</b> for the initiator and <b>{b}</b> for the target. This event only triggers when two contestants cross paths.
+        </p>
+        <div id="evD"></div>
+        <button class="ghost" id="addD">Add duo event</button>
+      </details>
+
+      <details class="evbox">
+        <summary><b>Disasters</b></summary>
+        <p class="meta">Enabled disasters strike at random. Any disaster can also be triggered by hand during a match.</p>
+        <p class="meta">
+          <b>Victim line:</b> The text shown for each person hit (use <b>{a}</b> for their name). <b>N:</b> How many people it targets (0 means everyone, if applicable).
+        </p>
+        <div id="evZ"></div>
+        <button class="ghost" id="addZ">Add disaster</button> 
+        <button class="ghost" id="resetEv">Reset events</button>
+      </details>
+
+      <details class="evbox">
+        <summary><b>Traits and jobs</b></summary>
+        <p class="meta">Traits add modifiers to a contestant (up to 3 each); a job is one extra role with the same kind of modifiers. Coord raises joint-attack chance, betray raises betrayal chance, ally raises alliance chance, heal is a Medic-style chance to patch up a groupmate. Contestants in the same faction coordinate better.</p>
+        <div id="evT"></div>
+        <button class="ghost" id="addT">Add trait</button> <button class="ghost" id="addJ">Add job</button>
+      </details>
+
+      <details class="evbox">
+        <summary><b>Status effects</b></summary>
+        <p class="meta">Statuses last a number of rounds. Use them from the event and disaster effect dropdowns, or let fights cause bleeding. High CON allows a save to resist.</p>
+        <div id="evX"></div>
+        <button class="ghost" id="addX">Add status</button>
+      </details>
+
+      <details class="evbox">
+        <summary><b>Relationships</b></summary>
+        <p class="meta">Lovers seek each other, join forces and grieve. Rivals and enemies hunt each other and make betrayal far more likely. Open this panel again after renaming contestants to refresh the names.</p>
+        <div id="evR"></div>
+        <button class="ghost" id="addR">Add relationship</button> <button class="ghost" id="rndR">Random relationships</button> <button class="ghost" id="resetTS">Reset traits, statuses and relationships</button>
       </details>
 
       <div class="bar">
         <button id="go">Start the match</button>
+        <button class="ghost" id="expBtn">Export Setup</button>
+        <label class="btn ghost" style="padding: 9px 16px; margin: 0; font-weight: 700; border-radius: 6px; cursor: pointer; border: 1px solid var(--line);">
+          Import Setup <input type="file" id="impBtn" accept=".json" hidden>
+        </label>
         <button class="ghost" id="wipe">Clear saved data</button>
       </div>
     </section>
@@ -98,14 +123,6 @@
     <section id="arena" hidden>
       <div class="bar">
         <button id="next">Next round</button>
-        <button class="ghost" id="auto">▶ Auto</button>
-        <label>Speed 
-          <select id="aspd" aria-label="Auto-play speed">
-            <option value="2500">Slow</option>
-            <option value="1200" selected>Normal</option>
-            <option value="400">Fast</option>
-          </select>
-        </label>
         <button class="ghost" id="rtog">Hide contestants</button>
         <button class="ghost" id="dtog">Show details</button>
         <button class="ghost" id="replay">Replay seed</button>
