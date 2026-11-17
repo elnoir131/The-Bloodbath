@@ -456,23 +456,72 @@ $("#teams").addEventListener("change", (e) => {
   }
   const f = e.target.files && e.target.files[0];
   if (d.img === undefined || !f) return;
+  set_photo_from_file(+d.img, f);
+});
 
+/* ---------- images: the file pickers and clipboard paste share the same resizing ---------- */
+function load_image(file, done) {
   const r = new FileReader();
   r.onload = () => {
     const im = new Image();
-    im.onload = () => {
-      const c = document.createElement("canvas");
-      c.width = c.height = 96;
-      const x = c.getContext("2d"),
-        m = Math.min(im.width, im.height);
-      x.drawImage(im, (im.width - m) / 2, (im.height - m) / 2, m, m, 0, 0, 96, 96);
-      P[+d.img].img = c.toDataURL("image/jpeg", 0.82);
-      draw_people();
-      save_soon();
-    };
+    im.onload = () => done(im);
     im.src = r.result;
   };
-  r.readAsDataURL(f);
+  r.readAsDataURL(file);
+}
+
+function set_photo_from_file(i, file) {
+  load_image(file, (im) => {
+    if (!P[i]) return;
+    const c = document.createElement("canvas");
+    c.width = c.height = 96;
+    const x = c.getContext("2d"),
+      m = Math.min(im.width, im.height);
+    x.drawImage(im, (im.width - m) / 2, (im.height - m) / 2, m, m, 0, 0, 96, 96);
+    P[i].img = c.toDataURL("image/jpeg", 0.82);
+    draw_people();
+    save_soon();
+  });
+}
+
+function set_bg_from_file(file) {
+  load_image(file, (im) => {
+    const k = Math.min(1, 1600 / Math.max(im.width, im.height)),
+      c = document.createElement("canvas");
+    c.width = im.width * k;
+    c.height = im.height * k;
+    c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
+    set_bg(c.toDataURL("image/jpeg", 0.8));
+  });
+}
+
+/* Paste a copied image (right-click > Copy image, or a screenshot) with Ctrl+V / Cmd+V.
+   It goes to whatever you last clicked: a contestant card sets that photo, the top
+   background bar sets the background. */
+let paste_target = null;
+
+function track_paste_target(e) {
+  const el = e.target.closest ? e.target : null;
+  const card = el && el.closest(".team");
+  if (card && card.parentElement === $("#teams")) {
+    paste_target = { kind: "photo", i: [...$("#teams").children].indexOf(card) };
+  } else if (el && el.closest("main > .bar")) {
+    paste_target = { kind: "bg" };
+  } else {
+    paste_target = null;
+  }
+}
+document.addEventListener("pointerdown", track_paste_target, true);
+document.addEventListener("focusin", track_paste_target);
+
+document.addEventListener("paste", (e) => {
+  const cb = e.clipboardData;
+  if (!paste_target || !cb || cb.getData("text/plain")) return;
+  const file = [...cb.files].find((f) => f.type.startsWith("image/"));
+  if (!file) return;
+  e.preventDefault();
+  if (paste_target.kind === "bg") set_bg_from_file(file);
+  else set_photo_from_file(paste_target.i, file);
 });
 
 $("#cnt").onchange = sync;
@@ -1732,21 +1781,7 @@ $("#dim").oninput = (e) => {
 $("#bgx").onclick = () => set_bg("");
 $("#bgf").addEventListener("change", (e) => {
   const f = e.target.files[0];
-  if (!f) return;
-  const r = new FileReader();
-  r.onload = () => {
-    const im = new Image();
-    im.onload = () => {
-      const k = Math.min(1, 1600 / Math.max(im.width, im.height)),
-        c = document.createElement("canvas");
-      c.width = im.width * k;
-      c.height = im.height * k;
-      c.getContext("2d").drawImage(im, 0, 0, c.width, c.height);
-      set_bg(c.toDataURL("image/jpeg", 0.8));
-    };
-    im.src = r.result;
-  };
-  r.readAsDataURL(f);
+  if (f) set_bg_from_file(f);
 });
 
 /* ---------- D&D-style abilities, traits, jobs, status effects and relationships ---------- */
