@@ -94,6 +94,8 @@ let OPEN = new Set(),
   SHOWALL = false;
 let ENDGAME = false,
   ENDGAME_ANNOUNCED = false;
+let FIN = false;
+const mark_end = () => { FIN = true; $("#next").textContent = "Show results"; };
 let current_bg = "";
 
 /* ---------- stats and inventory ---------- */
@@ -823,6 +825,7 @@ function start(sd) {
   pend = [];
   done = false;
   gid = 1000;
+  FIN = false; $("#next").textContent = "Next round";
   ENDGAME = false;
   ENDGAME_ANNOUNCED = false;
   RT = REL.filter((r) => r.a < T.length && r.b < T.length).map((r) => ({ ...r }));
@@ -1278,7 +1281,7 @@ $("#dtog").onclick = () => {
 
 function sponsor() {
   const t = T[+$("#spT").value];
-  if (done || !t || !t.alive) return;
+  if (done || FIN || !t || !t.alive) return;
   const g = $("#spG").value,
     L = [];
   if (g === "food") {
@@ -1576,7 +1579,7 @@ const over = () =>
   alive().length <= 1 || (M === "grp" && new Set(alive().map((t) => t.g)).size <= 1);
 
 function disaster() {
-  if (done) return;
+  if (done || FIN) return;
   const v = $("#dsT").value,
     d = v === "r" ? pick(DIS) : DIS[+v],
     L = [];
@@ -1586,7 +1589,7 @@ function disaster() {
   const c = cannon(pend.splice(0));
   if (c) L.push(c);
   drop("Disaster", L);
-  if (over()) finish();
+  if (over()) mark_end();
   render();
 }
 
@@ -1663,6 +1666,7 @@ function upkeep(t, L) {
 
 function step() {
   if (done) return;
+  if (FIN) { finish(); render(); return; }
   R++;
   const L = [];
 
@@ -1738,7 +1742,7 @@ function step() {
   L.push(cannon(pend.splice(0)) || ["Nobody falls this round.", ""]);
   add_log(`${R % 2 ? "Day" : "Night"} ${Math.ceil(R / 2)}`, L);
 
-  if (over()) finish();
+  if (over()) mark_end();
   render();
 }
 
@@ -1746,6 +1750,7 @@ const FORAGE_BASE = 0.12,
   FORAGE_WIT = 0.025;
 
 function finish() {
+  FIN = false; $("#next").textContent = "Next round";
   done = true;
   $("#next").disabled = $("#spB").disabled = $("#dsB").disabled = true;
 
