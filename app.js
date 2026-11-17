@@ -322,7 +322,7 @@ function draw_people() {
       return `
       <div class="team" style="--c:${p.team >= 0 ? col(p.team) : "var(--line)"}">
         <div class="row" style="margin-top:0">
-          <label class="avl" title="Add photo">
+          <label class="avl" title="Choose a photo">
             ${av(p)}
             <input type="file" accept="image/*" hidden data-img="${i}">
           </label>
@@ -495,34 +495,138 @@ function set_bg_from_file(file) {
   });
 }
 
-/* Paste a copied image (right-click > Copy image, or a screenshot) with Ctrl+V / Cmd+V.
-   It goes to whatever you last clicked: a contestant card sets that photo, the top
-   background bar sets the background. */
-let paste_target = null;
+/* Choosing an image: click a photo circle (or the Background image button) to get a small
+   popup with the image on your clipboard, plus "Show all files" for the normal file picker.
+   While the popup is open, Ctrl+V / Cmd+V pastes a copied image straight in. */
+let image_popup = null;
 
-function track_paste_target(e) {
-  const el = e.target.closest ? e.target : null;
-  const card = el && el.closest(".team");
-  if (card && card.parentElement === $("#teams")) {
-    paste_target = { kind: "photo", i: [...$("#teams").children].indexOf(card) };
-  } else if (el && el.closest("main > .bar")) {
-    paste_target = { kind: "bg" };
-  } else {
-    paste_target = null;
-  }
+function close_image_popup() {
+  if (!image_popup) return;
+  if (image_popup.url) URL.revokeObjectURL(image_popup.url);
+  image_popup.el.remove();
+  image_popup = null;
 }
-document.addEventListener("pointerdown", track_paste_target, true);
-document.addEventListener("focusin", track_paste_target);
 
+async function read_clipboard_image() {
+  if (!navigator.clipboard || !navigator.clipboard.read) return null;
+  try {
+    for (const item of await navigator.clipboard.read()) {
+      const type = item.types.find((t) => t.startsWith("image/"));
+      if (type) return await item.getType(type);
+    }
+  } catch (e) {
+    /* permission denied, or the page is not focused */
+  }
+  return null;
+}
+
+function open_image_popup(anchor, use_image, show_files) {
+  const same = image_popup && image_popup.anchor === anchor;
+  close_image_popup();
+  if (same) return;
+
+  const el = document.createElement("div");
+  el.className = "imgpop";
+  el.setAttribute("role", "dialog");
+  el.setAttribute("aria-label", "Choose an image");
+
+  const files_btn = document.createElement("button");
+  files_btn.className = "ghost";
+  files_btn.textContent = "Show all files";
+  const x_btn = document.createElement("button");
+  x_btn.className = "ghost";
+  x_btn.textContent = "\u00d7";
+  x_btn.setAttribute("aria-label", "Close");
+  const head = document.createElement("div");
+  head.className = "imgpop-head";
+  head.append(files_btn, x_btn);
+
+  const title = document.createElement("h4");
+  title.textContent = "Clipboard";
+  const slot = document.createElement("div");
+  slot.className = "imgpop-slot meta";
+  slot.textContent = "Checking the clipboard\u2026";
+  el.append(head, title, slot);
+  document.body.appendChild(el);
+
+  const place = () => {
+    const r = anchor.getBoundingClientRect();
+    el.style.top = Math.max(8, Math.min(r.bottom + 6, innerHeight - el.offsetHeight - 8)) + "px";
+    el.style.left = Math.max(8, Math.min(r.left, innerWidth - el.offsetWidth - 8)) + "px";
+  };
+  place();
+
+  image_popup = { el, anchor, url: null, use_image };
+  files_btn.onclick = () => {
+    close_image_popup();
+    show_files();
+  };
+  x_btn.onclick = close_image_popup;
+
+  read_clipboard_image().then((blob) => {
+    if (!image_popup || image_popup.el !== el) return;
+    if (!blob) {
+      slot.textContent = "No image on the clipboard. Copy one, then press Ctrl+V here.";
+      place();
+      return;
+    }
+    image_popup.url = URL.createObjectURL(blob);
+    const thumb = document.createElement("button");
+    thumb.className = "imgpop-thumb";
+    thumb.title = "Use this image";
+    const im = document.createElement("img");
+    im.alt = "Clipboard image";
+    im.onload = place;
+    im.src = image_popup.url;
+    thumb.append(im);
+    thumb.onclick = () => {
+      close_image_popup();
+      use_image(blob);
+    };
+    slot.replaceChildren(thumb);
+    place();
+  });
+}
+
+document.addEventListener("pointerdown", (e) => {
+  if (image_popup && !image_popup.el.contains(e.target) && !image_popup.anchor.contains(e.target)) {
+    close_image_popup();
+  }
+});
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") close_image_popup();
+});
+window.addEventListener("scroll", close_image_popup, true);
 document.addEventListener("paste", (e) => {
   const cb = e.clipboardData;
-  if (!paste_target || !cb || cb.getData("text/plain")) return;
+  if (!image_popup || !cb || cb.getData("text/plain")) return;
   const file = [...cb.files].find((f) => f.type.startsWith("image/"));
   if (!file) return;
   e.preventDefault();
-  if (paste_target.kind === "bg") set_bg_from_file(file);
-  else set_photo_from_file(paste_target.i, file);
+  const use_image = image_popup.use_image;
+  close_image_popup();
+  use_image(file);
 });
+
+$("#teams").addEventListener("click", (e) => {
+  const label = e.target.closest(".avl");
+  if (!label || e.target.matches("input[type=file]")) return;
+  e.preventDefault();
+  const input = label.querySelector("input[data-img]");
+  open_image_popup(
+    label,
+    (f) => set_photo_from_file(+input.dataset.img, f),
+    () => input.click(),
+  );
+});
+
+$("#bgf")
+  .closest("label")
+  .addEventListener("click", (e) => {
+    if (e.target === $("#bgf")) return;
+    e.preventDefault();
+    open_image_popup(e.currentTarget, set_bg_from_file, () => $("#bgf").click());
+  });
 
 $("#cnt").onchange = sync;
 $("#addt").onclick = () => {

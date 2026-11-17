@@ -362,3 +362,28 @@ ol { text-align: left; padding-left: 22px; }
   background: rgba(255, 0, 0, 0.1);
   margin: 10px 0;
 }
+
+/* Image chooser popup (clipboard image or file) */
+.imgpop {
+  position: fixed;
+  z-index: 50;
+  width: 260px;
+  max-width: calc(100vw - 16px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 12px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+}
+.imgpop-head { display: flex; gap: 8px; justify-content: space-between; align-items: center; }
+.imgpop h4 { margin: 12px 0 8px; }
+.imgpop-slot { min-height: 24px; }
+.imgpop-thumb {
+  display: block;
+  padding: 0;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.imgpop-thumb img { display: block; max-width: 100%; max-height: 160px; }
