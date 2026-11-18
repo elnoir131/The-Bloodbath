@@ -50,9 +50,17 @@ function die(t, by, why) {
   grief_of(t, by);
 }
 
+/* The match never ends with nobody left: the last person standing is spared at 1 HP. */
+function spare_last(t, L) {
+  if (!t.alive || t.hp > 0 || alive().length > 1) return false;
+  t.hp = 1;
+  L.push([`${N(t)} is the last one standing and clings on against all odds.`, "h", "🫀"]);
+  return true;
+}
+
 const settle = (L, ...ts) =>
   ts.forEach((t) => {
-    if (t.alive && t.hp <= 0) {
+    if (t.alive && t.hp <= 0 && !spare_last(t, L)) {
       die(t);
       L.push([`${N(t)} succumbs to their wounds.`, "k", "💀"]);
     }
@@ -70,15 +78,19 @@ function infect(t, L) {
   L.push([`${N(t)}'s wound turns bad and a fever sets in.`, "h", "🦠"]);
 }
 
+/* Ganging up: each helper adds a flat numbers bonus plus most of their own attack. */
+const gang_bonus = (c) => atk(c) * 0.8 + 3;
+
 function fight(a, b, L, ca, cb) {
   const p = (t) =>
     atk(t) +
     (t.w ? 3 : 0) +
     rnd(7) +
-    (4 * t.hp) / t.mhp -
+    (4 * t.hp) / t.mhp +
+    ability_mod(t.int) * 1.0 -
     (t.water <= 0 ? 3 : 0) +
-    (t === a && ca ? atk(ca) * 0.6 : 0) +
-    (t === b && cb ? atk(cb) * 0.6 : 0);
+    (t === a && ca ? gang_bonus(ca) : 0) +
+    (t === b && cb ? gang_bonus(cb) : 0);
   let w = a,
     l = b;
   if (p(b) > p(a)) {
@@ -99,14 +111,25 @@ function fight(a, b, L, ca, cb) {
     return;
   }
 
+  const helper = w === a ? ca : cb;
   if (
-    chance(Math.max(0.03, Math.min(0.5, 0.1 + 0.03 * (spd(l) - spd(w)) + 0.1 * (1 - l.hp / l.mhp))))
+    chance(
+      Math.max(
+        0.03,
+        Math.min(
+          0.5,
+          0.1 + 0.03 * (spd(l) - spd(w)) + 0.1 * (1 - l.hp / l.mhp) - (helper ? 0.1 : 0),
+        ),
+      ),
+    )
   ) {
     L.push([`${N(l)} breaks away from ${N(w)} and escapes.`, "h", "💨"]);
     return;
   }
 
-  const roll = Math.round(12 + 2.5 * atk(w) + (w.w ? 8 : 0) + rnd(16)),
+  const roll = Math.round(
+      12 + 2.5 * atk(w) + (w.w ? 8 : 0) + rnd(16) + (helper ? atk(helper) + (helper.w ? 4 : 0) : 0),
+    ),
     taken = Math.max(5, roll - 2 * ability_mod(l.con));
   w.dmg += Math.min(taken, Math.max(0, l.hp));
   l.hp -= taken;
@@ -257,6 +280,7 @@ function run_disaster(d, L) {
 
   const out = (t) => {
     if (t.alive && t.hp <= 0) {
+      if (spare_last(t, L)) return;
       die(t, null, "a disaster");
       L.push([`${N(t)} does not survive.`, "k", "💀"]);
     }
@@ -350,7 +374,7 @@ function upkeep(t, L) {
     t.hg = false;
   }
 
-  if (t.hp <= 0 && t.alive) {
+  if (t.hp <= 0 && t.alive && !spare_last(t, L)) {
     const why = t.water <= 0 ? "thirst" : t.food <= 0 ? "hunger" : t.inf ? "infection" : "wounds";
     die(t, null, why);
     L.push([
@@ -442,11 +466,60 @@ function step() {
   if (R % 3 === 0 || R > 8 || (alive().length > 8 && R > 5 && chance(0.3))) hazard(L);
 
   L.push(...XL.splice(0));
+  const fell = pend.map((t) => t.id);
   L.push(cannon(pend.splice(0)) || ["Nobody falls this round.", ""]);
-  add_log(`${R % 2 ? "Day" : "Night"} ${Math.ceil(R / 2)}`, L);
+  add_log(`${R % 2 ? "Day" : "Night"} ${Math.ceil(R / 2)}`, L, undefined, undefined, round_summary(fell));
 
   if (over()) mark_end();
   render();
+}
+
+/* Compact "who fell / who is low / who fought" header for a round. */
+function round_summary(fell) {
+  return {
+    dead: fell,
+    low: alive().filter((t) => t.hp < t.mhp * 0.3).map((t) => t.id),
+    fought: T.filter((t) => t.ex && (t.alive || t.round === R)).map((t) => t.id),
+    alive: alive().length,
+  };
+}
+
+/* Short prose recap built only from the final state (no randomness). */
+function epilogue() {
+  const al = alive(),
+    names = (a) => a.map((t) => t.n).join(" and "),
+    out = [];
+  const kills = al.reduce((n, t) => n + t.k, 0);
+  if (al.length) {
+    out.push(
+      `${names(al)} ${al.length > 1 ? "walk" : "walks"} out of the arena after ${R} rounds, ${
+        kills ? `having taken ${kills} li${kills > 1 ? "ves" : "fe"} along the way` : "without taking a single life"
+      }.`,
+    );
+  } else {
+    const last = dead.filter((t) => t.round === R);
+    out.push(
+      `Nobody walks out. ${last.length ? names(last) + (last.length > 1 ? " fall" : " falls") + " together in round " + R : "The arena claims everyone"}.`,
+    );
+  }
+  if (dead.length) {
+    const first = dead[0];
+    out.push(`${first.n} was the first to fall, in round ${first.round} (${first.why}).`);
+  }
+  const top = [...T].sort((x, y) => y.k - x.k)[0];
+  if (top && top.k > 1 && !top.alive)
+    out.push(`${top.n} was the deadliest with ${top.k} kills but fell in round ${top.round}.`);
+  const cause = (re) => dead.filter((t) => re.test(t.why)).length,
+    tolls = [
+      [cause(/disaster/), "to disasters"],
+      [cause(/thirst/), "to thirst"],
+      [cause(/hunger/), "to hunger"],
+      [cause(/infection/), "to infection"],
+      [cause(/^killed by/), "at another contestant's hand"],
+    ].filter(([n]) => n);
+  if (tolls.length)
+    out.push(`The arena took its toll: ${tolls.map(([n, w]) => `${n} ${w}`).join(", ")}.`);
+  return out.join(" ");
 }
 
 function finish() {
@@ -462,19 +535,21 @@ function finish() {
     ? `${al.map((t) => t.n).join(" & ")} ${al.length > 1 ? "win together" : "wins"} (${al.reduce((n, t) => n + t.k, 0)} kills, ${R} rounds)`
     : "No survivors";
 
+  const epi = epilogue();
   const d = document.createElement("div");
   d.className = "win";
   d.innerHTML =
     (al.length
       ? `${al.map(av).join("")}<h2>${esc(al.map((t) => t.n).join(" & "))} ${al.length > 1 ? "win together" : "wins"}</h2><p class="meta">${al.reduce((n, t) => n + t.k, 0)} kills · ${R} rounds · seed ${SEED}</p>`
       : `<h2>No survivors</h2><p class="meta">The arena claims everyone. Seed ${SEED}.</p>`) +
+    `<p class="epi">${esc(epi)}</p>` +
     `<ol>${order.map((t) => `<li>${esc(t.n)} <span class="meta">${esc(info(t))}</span></li>`).join("")}</ol>`;
 
   add_log(
     "Final results",
     [],
     d.outerHTML,
-    head + "\n" + order.map((t, i) => `${i + 1}. ${t.n}: ${info(t)}`).join("\n"),
+    head + "\n\n" + epi + "\n\n" + order.map((t, i) => `${i + 1}. ${t.n}: ${info(t)}`).join("\n"),
   );
 }
 
@@ -547,7 +622,8 @@ function assist(x, y) {
   if (i < 0) return null;
   const c = POOL[i];
   const p =
-    0.08 +
+    0.15 +
+    ability_mod(x.cha) * 0.02 +
     (trait_total(x, "coord") + trait_total(c, "coord")) / 100 +
     (ability_mod(x.int) + ability_mod(c.int)) * 0.01 +
     (x.fk && x.fk === c.fk ? 0.2 : 0) +
@@ -651,6 +727,17 @@ function pair(a, b, L) {
       ]);
       return;
     }
+  }
+  /* Charisma: a charming target can talk the aggressor down before any blow lands. */
+  const calm = Math.min(0.5, Math.max(0, 0.15 * ability_mod(b.cha) - 0.03 * ability_mod(a.cha)));
+  if (chance(calm)) {
+    L.push([`${N(a)} sizes up ${N(b)}, but ${N(b)} talks ${N(a)} down and they part ways.`, "a", "🗣️"]);
+    return;
+  }
+
+  if (chance(Math.max(0, ability_mod(b.cha) * 0.05))) {
+    L.push([`${N(a)} squares up to ${N(b)}, but ${N(b)} talks them down.`, "a", "🗣️"]);
+    return;
   }
   const dv = DUO.filter((e) => e.on);
   if (dv.length && chance(0.3)) {

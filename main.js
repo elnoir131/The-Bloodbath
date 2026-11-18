@@ -2,6 +2,11 @@
 
 load();
 
+{
+  const s = new URLSearchParams(location.search).get("seed");
+  if (s) $("#seed").value = s.trim().slice(0, 24);
+}
+
 sync();
 
 update_mode_ui();

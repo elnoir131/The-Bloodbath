@@ -387,3 +387,19 @@ ol { text-align: left; padding-left: 22px; }
   overflow: hidden;
 }
 .imgpop-thumb img { display: block; max-width: 100%; max-height: 160px; }
+/* Round summary header and epilogue */
+.rsum {
+  font-size: 13px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--bg) 60%, transparent);
+}
+.win .epi { max-width: 62ch; margin: 10px auto; text-align: left; }
+
+/* Mobile */
+@media (max-width: 600px) {
+  .pg { flex-direction: column; }
+  .pg button { width: 100%; }
+}

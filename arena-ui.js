@@ -115,12 +115,32 @@ function pics(x, e0) {
   return `<div class="pics${i.length > 4 ? " many" : ""}">${h}</div>`;
 }
 
+function summary_html(s) {
+  if (!s) return "";
+  const nm = (a) => a.map((k) => `<b class="hl">${esc(T[k].n)}</b>`).join(", ");
+  const parts = [`👥 ${s.alive} alive`];
+  if (s.dead.length) parts.push(`💀 Fallen: ${nm(s.dead)}`);
+  if (s.low.length) parts.push(`🩸 Low: ${nm(s.low)}`);
+  if (s.fought.length) parts.push(`⚔ Fought: ${nm(s.fought)}`);
+  return `<div class="rsum">${parts.join("<br>")}</div>`;
+}
+
+function summary_text(s) {
+  if (!s) return "";
+  const nm = (a) => a.map((k) => T[k].n).join(", ");
+  const parts = [`${s.alive} alive`];
+  if (s.dead.length) parts.push("fallen: " + nm(s.dead));
+  if (s.low.length) parts.push("low: " + nm(s.low));
+  if (s.fought.length) parts.push("fought: " + nm(s.fought));
+  return "_" + parts.join(" · ") + "_";
+}
+
 function show_page(live) {
   const p = PG[PI];
   $("#log").setAttribute("aria-live", live ? "polite" : "off");
   $("#log").innerHTML = p
     ? p.raw ||
-      `<div class="rd"><h3>${p.h}</h3>` +
+      `<div class="rd"><h3>${p.h}</h3>` + summary_html(p.sum) +
         p.L.map(([t, c, e]) => `<div class="ev ${c}">${pics(t, e)}<div>${fmt(t)}</div></div>`).join(
           "",
         ) +
@@ -158,10 +178,10 @@ function take_snap() {
   }));
 }
 
-function add_log(h, L, raw, txt) {
+function add_log(h, L, raw, txt, sum) {
   const f = PI >= PG.length - 1;
   const snap = take_snap();
-  PG.push({ h, L, raw, txt, snap });
+  PG.push({ h, L, raw, txt, snap, sum });
   if (f) PI = PG.length - 1;
   show_page(true);
 }
@@ -223,10 +243,15 @@ function sponsor() {
   render();
 }
 
-function drop(h, L) {
+function drop(h, L, fell) {
   const lp = PG[PG.length - 1];
   if (lp && !lp.raw) {
     lp.L.push(...L);
+    if (lp.sum) {
+      lp.sum.dead.push(...(fell || []));
+      lp.sum.low = alive().filter((t) => t.hp < t.mhp * 0.3).map((t) => t.id);
+      lp.sum.alive = alive().length;
+    }
     lp.snap = take_snap();
     if (PI === PG.length - 1) show_page(true);
   } else {
@@ -242,9 +267,10 @@ function disaster() {
   if (!d) return;
   run_disaster(d, L);
   L.push(...XL.splice(0));
+  const fell = pend.map((t) => t.id);
   const c = cannon(pend.splice(0));
   if (c) L.push(c);
-  drop("Disaster", L);
+  drop("Disaster", L, fell);
   if (over()) mark_end();
   render();
 }
@@ -318,9 +344,10 @@ $("#roster").addEventListener("keydown", (e) => {
 
 function export_log() {
   const nm = (x) => x.replace(/\u0001(\d+)\u0002/g, (m, k) => T[k].n);
-  const out = [`# Last Light Arena (seed ${SEED})`, ""];
+  const out = [`# The Bloodbath (seed ${SEED})`, ""];
   PG.forEach((p) => {
     out.push(`## ${p.h}`);
+    if (p.sum) out.push(summary_text(p.sum), "");
     if (p.txt) out.push(p.txt);
     else p.L.forEach(([t]) => out.push("- " + nm(t.replace(/<[^>]+>/g, ""))));
     out.push("");
@@ -346,6 +373,24 @@ $("#dsB").onclick = disaster;
 $("#dl").onclick = export_log;
 
 $("#replay").onclick = () => start(SEED);
+
+/* Link that pre-fills the seed. The same seed only replays the same match with the same setup. */
+$("#share").onclick = async () => {
+  const url = location.href.split(/[?#]/)[0] + "?seed=" + SEED,
+    b = $("#share");
+  try {
+    await navigator.clipboard.writeText(url);
+    b.textContent = "Link copied";
+  } catch (e) {
+    prompt("Copy this link:", url);
+  }
+  setTimeout(() => (b.textContent = "Copy seed link"), 1500);
+};
+
+/* Dev/balance helper (use from the console): play the current match to the end. */
+function sim_to_end() {
+  for (let g = 0; !done && g < 500; g++) step();
+}
 
 $("#reset").onclick = () => {
   rng = Math.random;
