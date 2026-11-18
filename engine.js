@@ -2,7 +2,7 @@
 
 function is_harmful(event) {
   const fx = event.fx || "";
-  if (fx === "hurt" || fx === "die") return true;
+  if (["hurt", "die", "hurtb", "hurtboth", "killb"].includes(fx)) return true;
   if (fx.startsWith("st:")) {
     const s = SD(fx.slice(3));
     return !!s && (s.dmg > 0 || s.atk + s.spd + s.wit < 0);
@@ -42,8 +42,6 @@ const heal = (t, p) => {
 function die(t, by, why) {
   t.alive = false;
   t.hp = 0;
-  if (t.ally) t.ally.ally = null;
-  t.ally = null;
   t.round = R;
   t.why = why || (by ? "killed by " + by.n : "wounds");
   pend.push(t);
@@ -158,7 +156,7 @@ function solo(a, L) {
     return;
   }
 
-  const ev = SOLO.filter((e) => e.on);
+  const ev = SOLO.filter((e) => e.on && !(e.fx === "craft" && a.w));
   if (!ev.length) {
     L.push([`${N(a)} rests.`, "", "💤"]);
     return;
@@ -168,7 +166,8 @@ function solo(a, L) {
   if ((e.fx === "hurt" || e.fx === "die") && chance(wit(a) * 0.04)) e = pick_weighted(ev, a);
 
   let w = null;
-  if (e.fx === "weapon") a.w = w = pick(WPN);
+  if (e.fx === "weapon") a.w = w = pick(WPN_STANDARD);
+  if (e.fx === "craft") a.w = w = pick(WPN_CRAFTED);
   if (e.fx === "food") gain_food(a, 10);
   if (e.fx === "water") gain_water(a, 4);
   if (e.fx === "ration") a.ration++;
@@ -382,8 +381,8 @@ function step() {
       ENDGAME = true;
       ENDGAME_ANNOUNCED = true;
       L.push([
-        "<div class='announce'>The endgame approaches. Alliances will fracture. Only one can survive.</div>",
-        "c",
+        "The endgame approaches. Alliances will fracture. Only one can survive.",
+        "announce",
         "🚨",
       ]);
     }
@@ -395,8 +394,8 @@ function step() {
           ENDGAME_ANNOUNCED = false;
         } else {
           L.push([
-            "<div class='announce'>Alliances are forbidden. The Gamemakers strike the remaining teams.</div>",
-            "c",
+            "Alliances are forbidden. The Gamemakers strike the remaining teams.",
+            "announce",
             "💀",
           ]);
           const ds = DIS.filter((e) => e.on);
@@ -655,7 +654,7 @@ function pair(a, b, L) {
   }
   const dv = DUO.filter((e) => e.on);
   if (dv.length && chance(0.3)) {
-    run_duo(pick_weighted(dv, a), a, b, L);
+    run_duo(pick_weighted(dv, b), a, b, L);
     return;
   }
   fight_joint(a, b, L);

@@ -56,7 +56,7 @@ const col = (j) => `hsl(${(j * 47) % 360} 60% 55%)`;
 
 function av(t) {
   return t.img
-    ? `<img class="av" alt="" src="${t.img}">`
+    ? `<img class="av" alt="" src="${esc(t.img)}">`
     : `<span class="av">${esc((t.name || t.n || "?")[0].toUpperCase())}</span>`;
 }
 

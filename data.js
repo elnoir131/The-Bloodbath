@@ -38,7 +38,6 @@ const SR = {
   int: [1, 20],
   wis: [1, 20],
   cha: [1, 20],
-  hp: [1, 100],
   water: [1, 12],
   food: [1, 99],
   bottle: [0, 5],
@@ -46,7 +45,7 @@ const SR = {
   kit: [0, 5],
 };
 
-const DEFS = { hp: 100, water: 5, food: 40, bottle: 0, ration: 0, kit: 0 };
+const DEFS = { water: 5, food: 40, bottle: 0, ration: 0, kit: 0 };
 
 const ICONS = [
   [/turns on/, "🔪"],
@@ -100,6 +99,7 @@ const DEF_SOLO = [
   { t: "{a} cuts a hand on rusted wire.", fx: "st:bleed", ic: "🩸", on: true },
   { t: "{a} finds a sealed ration crate in a collapsed tower.", fx: "ration", ic: "📦", on: true },
   { t: "{a} pulls a {w} from an abandoned supply drop.", fx: "weapon", ic: "🎒", on: true },
+  { t: "{a} lashes together a {w} from scrap.", fx: "craft", ic: "🔨", on: true },
   { t: "{a} sleeps in a hollow and recovers some strength.", fx: "heal", ic: "💤", on: true },
   { t: "{a} traps a small animal and eats well.", fx: "food", ic: "🐇", on: true },
   { t: "{a} slips on a ridge and tears open a leg.", fx: "hurt", ic: "🤕", on: true },

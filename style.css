@@ -352,14 +352,14 @@ ol { text-align: left; padding-left: 22px; }
 .nl { display: flex; gap: 4px; align-items: center; font-size: 12px; color: var(--mute); }
 .erow .nl input { width: 62px; padding: 6px 8px; }
 .rd .announce {
-  color: #ff2222;
+  color: var(--dead);
   font-weight: bold;
   font-size: 1.2em;
   text-align: center;
   padding: 10px;
-  border: 2px solid #ff2222;
+  border: 2px solid var(--dead);
   border-radius: 6px;
-  background: rgba(255, 0, 0, 0.1);
+  background: color-mix(in srgb, var(--dead) 12%, transparent);
   margin: 10px 0;
 }
 

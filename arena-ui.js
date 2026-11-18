@@ -7,7 +7,7 @@ let PG = [],
 
 function start(sd) {
   const raw = $("#seed").value.trim();
-  SEED = sd || (raw ? (/^\d{1,9}$/.test(raw) ? +raw : hash_string(raw)) : new_seed());
+  SEED = sd || (raw ? (/^\d{1,10}$/.test(raw) && +raw <= 4294967295 ? +raw : hash_string(raw)) : new_seed());
   rng = mulberry32(SEED);
 
   T = P.slice(0, contestant_count()).map((p, i) => ({
@@ -46,7 +46,6 @@ function start(sd) {
     ex: false,
     dz: false,
     hg: false,
-    ally: null,
     round: undefined,
     why: "",
   }));
@@ -91,11 +90,8 @@ function start(sd) {
   render();
 }
 
-const fmt = (x) => {
-  const s = String(x);
-  if (s.startsWith("<div class='announce'>")) return s;
-  return esc(s).replace(/\u0001(\d+)\u0002/g, (m, k) => `<b class="hl">${esc(T[k].n)}</b>`);
-};
+const fmt = (x) =>
+  esc(String(x)).replace(/\u0001(\d+)\u0002/g, (m, k) => (T[k] ? `<b class="hl">${esc(T[k].n)}</b>` : ""));
 
 const ids = (x) => [...new Set([...x.matchAll(/\u0001(\d+)\u0002/g)].map((m) => +m[1]))];
 
@@ -107,7 +103,7 @@ const icon = (x) => {
 function pics(x, e0) {
   const i = ids(x),
     e = e0 || icon(x),
-    b = e ? `<span class="ic" aria-hidden="true">${e}</span>` : "";
+    b = e ? `<span class="ic" aria-hidden="true">${esc(e)}</span>` : "";
   if (!i.length && !b) return "";
   const h =
     i.length === 2
@@ -139,9 +135,8 @@ function show_page(live) {
   render();
 }
 
-function add_log(h, L, raw, txt) {
-  const f = PI >= PG.length - 1;
-  const snap = T.map((t) => ({
+function take_snap() {
+  return T.map((t) => ({
     alive: t.alive,
     hp: t.hp,
     k: t.k,
@@ -161,6 +156,11 @@ function add_log(h, L, raw, txt) {
     why: t.why,
     w: t.w,
   }));
+}
+
+function add_log(h, L, raw, txt) {
+  const f = PI >= PG.length - 1;
+  const snap = take_snap();
   PG.push({ h, L, raw, txt, snap });
   if (f) PI = PG.length - 1;
   show_page(true);
@@ -216,7 +216,7 @@ function sponsor() {
     L.push([`A sponsor sends ${N(t)} a medical kit.`, "a", "🏥"]);
   }
   if (g === "weapon") {
-    t.w = pick(WPN);
+    t.w = pick(WPN_STANDARD);
     L.push([`A sponsor sends ${N(t)} a ${t.w}.`, "a", "🎁"]);
   }
   drop("Sponsor drop", L);
@@ -227,6 +227,7 @@ function drop(h, L) {
   const lp = PG[PG.length - 1];
   if (lp && !lp.raw) {
     lp.L.push(...L);
+    lp.snap = take_snap();
     if (PI === PG.length - 1) show_page(true);
   } else {
     add_log(h, L);
@@ -271,7 +272,7 @@ function render() {
         <div class="x">
           <b>${esc(t.n)}</b>
           <div class="hp"><i style="width:${Math.max(0, (100 * t.hp) / t.mhp)}%"></i></div>
-          <span class="meta">${t.alive ? t.w || "unarmed" : "fallen"} · ${t.k} kill${t.k === 1 ? "" : "s"}${t.alive ? " " + sx(t) : ""}</span>
+          <span class="meta">${t.alive ? esc(t.w || "unarmed") : "fallen"} · ${t.k} kill${t.k === 1 ? "" : "s"}${t.alive ? " " + sx(t) : ""}</span>
           ${detail(t)}
         </div>
       </div>
@@ -359,8 +360,8 @@ const abil = (t) =>
   (t.traits.length || t.job || t.fac
     ? "<br>" +
       [
-        t.job && TR(t.job) ? TR(t.job).ic + " " + esc(TR(t.job).n) : "",
-        ...t.traits.map((id) => (TR(id) ? TR(id).ic + " " + esc(TR(id).n) : "")),
+        t.job && TR(t.job) ? esc(TR(t.job).ic) + " " + esc(TR(t.job).n) : "",
+        ...t.traits.map((id) => (TR(id) ? esc(TR(id).ic) + " " + esc(TR(id).n) : "")),
         t.fac ? "🏷 " + esc(t.fac) : "",
       ]
         .filter(Boolean)
@@ -369,8 +370,8 @@ const abil = (t) =>
   (t.fx.length
     ? "<br>" +
       t.fx
-        .map((s) => (SD(s.id) ? SD(s.id).ic + " " + esc(SD(s.id).n) + " (" + s.left + ")" : ""))
+        .map((s) => (SD(s.id) ? esc(SD(s.id).ic) + " " + esc(SD(s.id).n) + " (" + s.left + ")" : ""))
         .join(" · ")
     : "");
 
-const sx = (t) => t.fx.map((s) => (SD(s.id) || {}).ic || "").join("");
+const sx = (t) => t.fx.map((s) => esc((SD(s.id) || {}).ic || "")).join("");

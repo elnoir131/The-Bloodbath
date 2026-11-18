@@ -47,9 +47,8 @@ const save_soon = () => {
 
 const IMG = /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/;
 
-function load() {
-  try {
-    const d = JSON.parse(localStorage.getItem(KEY) || "null");
+function apply_setup(d) {
+  {
     if (!d || typeof d !== "object") return;
     const mig = d.ver < 12;
 
@@ -92,8 +91,8 @@ function load() {
     const ev = (a, def) =>
       Array.isArray(a) && a.length && a.every((e) => e && typeof e.t === "string")
         ? a.map((e) => ({
-            t: String(e.t).slice(0, 160),
-            v: String(e.v || "").slice(0, 160),
+            t: String(e.t).replace(/[\u0001\u0002]/g, "").slice(0, 160),
+            v: String(e.v || "").replace(/[\u0001\u0002]/g, "").slice(0, 160),
             fx: String(e.fx || "none"),
             n: Math.max(0, Math.min(48, +e.n || 0)),
             ic: String(e.ic || "❓").slice(0, 8),
@@ -123,6 +122,12 @@ function load() {
       set_bg(d.bg);
     }
     load_new(d);
+  }
+}
+
+function load() {
+  try {
+    apply_setup(JSON.parse(localStorage.getItem(KEY) || "null"));
   } catch (e) {}
 }
 
@@ -180,24 +185,7 @@ $("#impBtn").addEventListener("change", (e) => {
         throw new Error("Invalid file format.");
       }
 
-      if (Array.isArray(d.TN)) TN = d.TN;
-      if (Array.isArray(d.SOLO)) SOLO = d.SOLO;
-      if (Array.isArray(d.DUO)) DUO = d.DUO;
-      if (Array.isArray(d.DIS)) DIS = d.DIS;
-      if (Array.isArray(d.TRAITS)) TRAITS = d.TRAITS;
-      if (Array.isArray(d.STATUS)) STATUS = d.STATUS;
-      if (Array.isArray(d.REL)) REL = d.REL;
-
-      if (d.cnt) $("#cnt").value = d.cnt;
-      if (d.size) $("#size").value = d.size;
-      if (d.mode) $("#mode").value = d.mode;
-      if (d.mgs) $("#mgs").value = d.mgs;
-      if (d.endgame) $("#endgame").value = d.endgame;
-      $("#ban").checked = !!d.ban;
-      $("#nob").checked = !!d.nob;
-      $("#lockleave").checked = !!d.lockleave;
-
-      P = d.P.map((p) => ({ ...new_contestant(), ...p }));
+      apply_setup(d);
 
       sync();
       update_mode_ui();
