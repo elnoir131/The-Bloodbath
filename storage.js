@@ -29,6 +29,8 @@ function save() {
         nob: $("#nob").checked,
         lockleave: $("#lockleave").checked,
         diswipe: $("#diswipe").checked,
+        fairn: $("#fairn").value,
+        quiet: $("#quiet").value,
         mgs: $("#mgs").value,
         endgame: $("#endgame").value,
         dim: $("#dim").value,
@@ -118,6 +120,8 @@ function apply_setup(d) {
     $("#nob").checked = !!d.nob;
     $("#lockleave").checked = !!d.lockleave;
     $("#diswipe").checked = !!d.diswipe;
+    if (d.fairn !== undefined) $("#fairn").value = d.fairn;
+    if (d.quiet !== undefined) $("#quiet").value = d.quiet;
     if (d.dim !== undefined) $("#dim").value = d.dim;
     if (typeof d.seed === "string") $("#seed").value = d.seed.slice(0, 24);
     if (typeof d.bg === "string" && d.bg.startsWith("data:image")) {
@@ -162,6 +166,8 @@ $("#expBtn").onclick = () => {
     nob: $("#nob").checked,
     lockleave: $("#lockleave").checked,
         diswipe: $("#diswipe").checked,
+        fairn: $("#fairn").value,
+        quiet: $("#quiet").value,
     mgs: $("#mgs").value,
     endgame: $("#endgame").value,
   };

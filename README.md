@@ -19,7 +19,7 @@ Since this is a vanilla HTML/CSS/JS project, there is no installation required.
     *   📖 **INT:** Tactics. Adds an edge in fights and helps joint-attack coordination.
     *   🧠 **WIS:** Survival instincts, finding water, dodging hazards.
     *   💬 **CHA:** Forming alliances, talking aggressors out of attacking you, and rallying groupmates to join a joint attack.
-*   **Optional Rules:** Ban teaming, ban betrayal, lock leavers out of teams, and let disasters kill everyone.
+*   **Optional Rules:** Ban teaming, ban betrayal, lock leavers out of teams, let disasters kill everyone, and set the *Fair fight* and *Gamemakers* thresholds below.
 *   **Win Conditions:** Play until there is *One survivor*, or allow the *Last group to share* the victory.
 
 ### The Simulation Engine
@@ -31,6 +31,8 @@ Since this is a vanilla HTML/CSS/JS project, there is no installation required.
 *   **Relationships:** Set up Lovers (who seek each other and grieve for the other's death), Rivals, and Enemies (who hunt each other or incite betrayal 🤡).
 *   **Traits & Jobs:** Assign passive traits per contestant and a specialized job (e.g., Medic, Soldier, Scout) to give them an edge.
 *   **Last Survivor Rule:** Thirst, hunger, and wounds will never wipe out the very last person standing; they cling on at 1 HP. If a *disaster* would kill everyone left, the patrons step in and spare one contestant, and the higher the CHA, the better the odds (a 18 CHA beats an 8 CHA about 5 times out of 6). Tick **Disasters can kill everyone** under Optional rules to turn the rescue off and allow a match with no winner.
+*   **Fair Fight:** When this many contestants or fewer remain (default 3, 0 = off), random disasters stop picking victims, so the last few settle it themselves. Area-wide disasters like heat waves and rain can still happen, and you can still trigger any disaster by hand.
+*   **Gamemakers Step In:** After this many rounds in a row with no death and no combat (default 3, 0 = off), the Gamemakers act: a harmful disaster if many remain, or a forced fight between two survivors if few remain.
 *   **Endgame Mode:** Once a certain number of players remain, alliances are forbidden, and the Gamemakers will strike down anyone trying to team up (f*ck lovers 💔).
 
 ### Quality of Life

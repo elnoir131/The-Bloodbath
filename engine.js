@@ -82,6 +82,7 @@ function infect(t, L) {
 const gang_bonus = (c) => atk(c) * 0.8 + 3;
 
 function fight(a, b, L, ca, cb) {
+  COMBAT = true;
   const p = (t) =>
     atk(t) +
     (t.w ? 3 : 0) +
@@ -221,6 +222,7 @@ function solo(a, L) {
 }
 
 function run_duo(e, a, b, L) {
+  if (is_harmful(e)) COMBAT = true;
   if (e.fx === "steal" && chance(Math.min(0.6, wit(b) * 0.05))) {
     L.push([`${N(a)} tries to take supplies from ${N(b)}, but ${N(b)} wakes in time.`, "h", "💰"]);
     return;
@@ -285,7 +287,9 @@ function run_disaster(d, L) {
     }
   };
 
-  /* If this disaster would kill everyone still alive, the patrons favour one of them. */
+  /* If this disaster would kill everyone still alive, the patrons favour one of them.
+     Odds are weighted by CHA squared, so a charming contestant is likelier to be spared.
+     Turned off by the "Disasters can kill everyone" rule. */
   const favourite = () => {
     const doomed = alive().filter((t) => t.hp <= 0);
     if (DISWIPE || !doomed.length || doomed.length < alive().length) return null;
@@ -341,10 +345,38 @@ function run_disaster(d, L) {
   });
 }
 
+/* A disaster that picks out some contestants rather than hitting everyone (or nobody). */
+const singles_out = (d) =>
+  ["killweak", "killrand", "hurtrand"].includes(d.fx) || (d.fx.startsWith("st:") && d.n < alive().length);
+
 function hazard(L) {
-  const ds = DIS.filter((e) => e.on);
+  let ds = DIS.filter((e) => e.on);
+  /* Fair fight: when few remain, random disasters stop picking victims and the survivors settle it. */
+  if (FAIRN > 0 && alive().length <= FAIRN) ds = ds.filter((e) => !singles_out(e));
   if (alive().length < 2 || !ds.length) return;
   run_disaster(pick_weighted(ds), L);
+}
+
+/* Stalemate breaker: after several rounds with no death and no combat, the Gamemakers step in.
+   Many remain: a harmful disaster. Few remain: two survivors are forced into a fight. */
+function gamemakers(L) {
+  const al = alive();
+  if (al.length < 2) return false;
+  if (FAIRN > 0 && al.length <= FAIRN) {
+    const a = pick(al),
+      far = al.filter((x) => x !== a && x.g !== a.g),
+      b = pick(far.length ? far : al.filter((x) => x !== a));
+    L.push([`The Gamemakers grow impatient and herd ${N(a)} and ${N(b)} into the same clearing.`, "c", "🚨"]);
+    fight_joint(a, b, L);
+    return true;
+  }
+  const ds = DIS.filter(
+    (e) => e.on && (["killweak", "killrand", "hurtrand", "hurtall"].includes(e.fx) || is_harmful(e)),
+  );
+  if (!ds.length) return false;
+  L.push(["The Gamemakers grow impatient with the quiet.", "c", "🚨"]);
+  run_disaster(pick_weighted(ds), L);
+  return true;
 }
 
 const over = () =>
@@ -425,6 +457,8 @@ function step() {
   if (done) return;
   if (FIN) { finish(); render(); return; }
   R++;
+  HELPERS = new Set();
+  COMBAT = false;
   const L = [];
 
   if (M === "one" && alive().length > 1) {
@@ -493,10 +527,13 @@ function step() {
     else if (b.alive) pair(a, b, L);
   }
 
-  if (R % 3 === 0 || R > 8 || (alive().length > 8 && R > 5 && chance(0.3))) hazard(L);
+  const forced = QUIETN > 0 && QUIET >= QUIETN && gamemakers(L);
+  if (forced) QUIET = 0;
+  else if (R % 3 === 0 || R > 8 || (alive().length > 8 && R > 5 && chance(0.3))) hazard(L);
 
   L.push(...XL.splice(0));
   const fell = pend.map((t) => t.id);
+  QUIET = COMBAT || fell.length ? 0 : QUIET + 1;
   L.push(cannon(pend.splice(0)) || ["Nobody falls this round.", ""]);
   add_log(`${R % 2 ? "Day" : "Night"} ${Math.ceil(R / 2)}`, L, undefined, undefined, round_summary(fell));
 
@@ -504,12 +541,17 @@ function step() {
   render();
 }
 
+const kill_text = (n) => `${n} kill${n === 1 ? "" : "s"}`;
+
+/* Joint-attack helpers this round (they are not marked as fighting by t.ex, which also drains water and food). */
+let HELPERS = new Set();
+
 /* Compact "who fell / who is low / who fought" header for a round. */
 function round_summary(fell) {
   return {
     dead: fell,
     low: alive().filter((t) => t.hp < t.mhp * 0.3).map((t) => t.id),
-    fought: T.filter((t) => t.ex && (t.alive || t.round === R)).map((t) => t.id),
+    fought: T.filter((t) => (t.ex || HELPERS.has(t.id)) && (t.alive || t.round === R)).map((t) => t.id),
     alive: alive().length,
   };
 }
@@ -547,6 +589,8 @@ function epilogue() {
       [cause(/infection/), "to infection"],
       [cause(/^killed by/), "at another contestant's hand"],
     ].filter(([n]) => n);
+  const rest = dead.length - tolls.reduce((n, [c]) => n + c, 0);
+  if (rest > 0) tolls.push([rest, "to their wounds"]);
   if (tolls.length)
     out.push(`The arena took its toll: ${tolls.map(([n, w]) => `${n} ${w}`).join(", ")}.`);
   return out.join(" ");
@@ -562,7 +606,7 @@ function finish() {
   const info = (t) =>
     `${t.k} kill${t.k === 1 ? "" : "s"} · ${t.dmg} damage · ${t.alive ? "survived" : "out in round " + t.round + " (" + t.why + ")"}${t.team >= 0 ? " · started with " + TM[t.team].n : " · started solo"}`;
   const head = al.length
-    ? `${al.map((t) => t.n).join(" & ")} ${al.length > 1 ? "win together" : "wins"} (${al.reduce((n, t) => n + t.k, 0)} kills, ${R} rounds)`
+    ? `${al.map((t) => t.n).join(" & ")} ${al.length > 1 ? "win together" : "wins"} (${kill_text(al.reduce((n, t) => n + t.k, 0))}, ${R} rounds)`
     : "No survivors";
 
   const epi = epilogue();
@@ -570,7 +614,7 @@ function finish() {
   d.className = "win";
   d.innerHTML =
     (al.length
-      ? `${al.map(av).join("")}<h2>${esc(al.map((t) => t.n).join(" & "))} ${al.length > 1 ? "win together" : "wins"}</h2><p class="meta">${al.reduce((n, t) => n + t.k, 0)} kills · ${R} rounds · seed ${SEED}</p>`
+      ? `${al.map(av).join("")}<h2>${esc(al.map((t) => t.n).join(" & "))} ${al.length > 1 ? "win together" : "wins"}</h2><p class="meta">${kill_text(al.reduce((n, t) => n + t.k, 0))} · ${R} rounds · seed ${SEED}</p>`
       : `<h2>No survivors</h2><p class="meta">The arena claims everyone. Seed ${SEED}.</p>`) +
     `<p class="epi">${esc(epi)}</p>` +
     `<ol>${order.map((t) => `<li>${esc(t.n)} <span class="meta">${esc(info(t))}</span></li>`).join("")}</ol>`;
@@ -666,6 +710,8 @@ function fight_joint(a, b, L) {
     cb = ca ? null : assist(b, a);
   if (ca) L.push([`${N(a)} and ${N(ca)} strike ${N(b)} together.`, "h", "⚔️"]);
   if (cb) L.push([`${N(b)} and ${N(cb)} close ranks against ${N(a)}.`, "h", "⚔️"]);
+  if (ca) HELPERS.add(ca.id);
+  if (cb) HELPERS.add(cb.id);
   fight(a, b, L, ca, cb);
 }
 

@@ -67,6 +67,10 @@ function start(sd) {
   NOB = $("#nob").checked;
   LOCKLEAVE = $("#lockleave").checked;
   DISWIPE = $("#diswipe").checked;
+  FAIRN = num($("#fairn").value, 0, 12);
+  QUIETN = num($("#quiet").value, 0, 10);
+  QUIET = 0;
+  COMBAT = false;
   GN = {};
   TM.forEach((m, j) => (GN[j] = { n: m.n }));
   tc = TM.length;

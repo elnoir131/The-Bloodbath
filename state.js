@@ -1,6 +1,7 @@
 /* state.js: Shared mutable state (match + setup) and pure derived helpers (atk/spd/wit, alive, relationships). */
 
-let GN = {}, tc = 0, BAN = false, NOB = false, LOCKLEAVE = false, DISWIPE = false;
+let GN = {}, tc = 0, BAN = false, NOB = false, LOCKLEAVE = false, DISWIPE = false,
+  FAIRN = 3, QUIETN = 3, QUIET = 0, COMBAT = false;
 
 let P = [], TN = [], T = [], TM = [], R = 0, dead = [], pend = [],
   done = false, gid = 1000, M = "one", SEED = 0, THEME = "auto";
