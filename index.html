@@ -53,13 +53,15 @@
 
       <details class="evbox">
         <summary><b>Optional rules</b></summary>
-        <div class="bar">
+        <div class="bar opts">
           <label><input type="checkbox" id="ban"> Ban teaming (everyone plays solo, no alliances)</label>
           <label><input type="checkbox" id="nob"> Ban betrayal</label>
           <label><input type="checkbox" id="lockleave"> Contestants who leave a team can never rejoin one</label>
           <label title="Off: if a disaster would kill everyone left, the patrons spare one (higher CHA is likelier). On: nobody is spared, so a match can end with no winner."><input type="checkbox" id="diswipe"> Disasters can kill everyone (no patron rescue)</label>
+          <div class="optnums">
           <label title="When this many or fewer remain, random disasters stop picking victims, so the survivors settle it themselves. 0 = off.">Fair fight at <input type="number" id="fairn" min="0" max="12" value="3"></label>
           <label title="After this many rounds in a row with no death and no combat, the Gamemakers step in: a harmful disaster, or a forced fight if few remain. 0 = off.">Gamemakers step in after <input type="number" id="quiet" min="0" max="10" value="3"> quiet rounds</label>
+          </div>
         </div>
       </details>
 

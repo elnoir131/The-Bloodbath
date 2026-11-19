@@ -530,7 +530,7 @@ function step() {
       let i = rnd(pool.length);
       const m = pool.findIndex((x) => x.g === a.g);
       if (m >= 0 && chance(0.5)) i = m;
-      const r = pool.findIndex((x) => relationship_of(a, x));
+      const r = pool.findIndex((x) => relationship_of(a, x) || relationship_of(x, a));
       if (r >= 0 && chance(0.4)) i = r;
       b = pool.splice(i, 1)[0];
     }
@@ -657,7 +657,9 @@ function join_group(a, b) {
 function add_status(t, id, L) {
   const d = SD(id);
   if (!d || !t.alive) return;
-  if (chance(Math.max(0, ability_mod(t.con) * 0.05))) {
+  /* Only harmful statuses can be resisted. Buffs (inspired, regenerating...) always land. */
+  const harmful = d.dmg > 0 || d.atk < 0 || d.spd < 0 || d.wit < 0;
+  if (harmful && chance(Math.max(0, ability_mod(t.con) * 0.05))) {
     L.push([`${N(t)} resists the ${d.n.toLowerCase()}.`, "a", "🛡️"]);
     return;
   }
@@ -685,7 +687,8 @@ function settle_vendettas(t, by) {
 }
 
 function grief_of(t, by) {
-  RT.filter((r) => r.type === "lover" && (r.a === t.id || r.b === t.id)).forEach((r) => {
+  /* A one-sided lover row (mutual === false) means a loves b: only a grieves, and only if b dies. */
+  RT.filter((r) => r.type === "lover" && (r.b === t.id || (r.a === t.id && r.mutual !== false))).forEach((r) => {
     const o = T[r.a === t.id ? r.b : r.a];
     if (!o || !o.alive) return;
     const d = SD("grief");
@@ -764,11 +767,36 @@ function fight_joint(a, b, L) {
 }
 
 function pair(a, b, L) {
+  /* Feelings can be one-sided. If only b has them toward a, swap so a is the one who feels. */
+  if (!relationship_of(a, b) && relationship_of(b, a)) [a, b] = [b, a];
   const rel = relationship_of(a, b),
     same = a.g === b.g,
     fac = a.fk && a.fk === b.fk,
     bt = (t) => trait_total(t, "betray");
   const can_join = (t) => !LOCKLEAVE || !t.left;
+
+  /* Unrequited love: a seeks b, but b does not feel the same. A calculating b (INT) may exploit it:
+     a joins b's group and hands over supplies. Otherwise b turns a away. */
+  if (rel === "lover" && !same && relationship_of(b, a) !== "lover") {
+    const use =
+      !BAN && !ENDGAME && can_join(a) && can_join(b) &&
+      chance(Math.min(0.9, Math.max(0.2, 0.5 + ability_mod(b.int) * 0.03)));
+    const j = use ? join_group(a, b) : null;
+    if (!j) {
+      L.push([`${N(a)} seeks out ${N(b)}, but ${N(b)} does not return the feeling.`, "a", "💔"]);
+      return;
+    }
+    let gift;
+    if (a.ration > 0) (a.ration--, b.ration++, (gift = "a ration"));
+    else if (a.bottle > 0) (a.bottle--, b.bottle++, (gift = "a water bottle"));
+    else (gain_food(b, 3), (a.food = Math.max(1, a.food - 3)), (gift = "some food"));
+    L.push([
+      `${N(a)} seeks out ${N(b)}, who does not feel the same but happily lets ${N(a)} tag along in ${j.nm} and hand over ${gift}.`,
+      "a",
+      "💔",
+    ]);
+    return;
+  }
 
   if (rel === "lover" && !same) {
     if (BAN || ENDGAME || !can_join(a) || !can_join(b)) {

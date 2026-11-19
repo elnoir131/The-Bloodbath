@@ -257,7 +257,7 @@ function load_new(d) {
         RN[r.type],
     )
       .slice(0, 100)
-      .map((r) => ({ a: r.a, b: r.b, type: r.type }));
+      .map((r) => ({ a: r.a, b: r.b, type: r.type, mutual: r.mutual !== false }));
   P.forEach((p) => {
     p.traits = p.traits.filter((id) => TR(id) && TR(id).kind !== "job");
     if (!(TR(p.job) && TR(p.job).kind === "job")) p.job = "";

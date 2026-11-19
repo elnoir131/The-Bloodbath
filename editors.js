@@ -125,7 +125,8 @@ function rrow(r, i) {
     <select data-f="type" aria-label="Relationship">${Object.keys(RN)
       .map((x) => `<option value="${x}"${r.type === x ? " selected" : ""}>${RN[x]}</option>`)
       .join("")}</select>
-    <select data-f="b" aria-label="Second">${sel(r.b)}</select><button class="ghost" data-del aria-label="Delete">×</button></div>`;
+    <select data-f="b" aria-label="Second">${sel(r.b)}</select>
+    <label class="nl" title="Ticked: both feel it. Unticked: only the first feels it toward the second."><input type="checkbox" data-f="mutual"${r.mutual !== false ? " checked" : ""}>both ways</label><button class="ghost" data-del aria-label="Delete">×</button></div>`;
 }
 
 function draw_tsr() {
@@ -146,7 +147,7 @@ function handle_tsr_change(e) {
     F = k === "t" ? TF : SF;
   let v = e.target.value;
   const sp = F.find((x) => x[0] === f);
-  if (k === "r") v = f === "type" ? v : +v;
+  if (k === "r") v = f === "type" ? v : f === "mutual" ? e.target.checked : +v;
   else if (sp) {
     v = num(v, sp[1], sp[2]);
     if (e.type === "change") e.target.value = v;
@@ -213,7 +214,7 @@ $("#addX").onclick = add_new_entry("x", () => ({
   dur: 2,
 }));
 
-$("#addR").onclick = add_new_entry("r", () => ({ a: 0, b: 1, type: "rival" }));
+$("#addR").onclick = add_new_entry("r", () => ({ a: 0, b: 1, type: "rival", mutual: true }));
 
 $("#rndR").onclick = () => {
   const n = contestant_count(),
@@ -223,7 +224,7 @@ $("#rndR").onclick = () => {
     const a = Math.floor(Math.random() * n);
     let b = Math.floor(Math.random() * n);
     if (b === a) b = (a + 1) % n;
-    REL.push({ a, b, type: types[Math.floor(Math.random() * types.length)] });
+    REL.push({ a, b, type: types[Math.floor(Math.random() * types.length)], mutual: true });
   }
   draw_tsr();
   save_soon();

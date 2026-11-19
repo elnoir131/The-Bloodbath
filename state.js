@@ -77,14 +77,17 @@ const vend_mult = (from, to) =>
 
 const group_size = (g) => T.filter((t) => t.alive && t.g === g).length;
 
+/* How a feels about b. A row {a, b, type} means a feels it toward b; it also counts the other
+   way round unless mutual === false (older saves have no flag, so they stay two-sided). */
 function relationship_of(a, b) {
   let r = null;
   for (const x of RT) {
-    if ((x.a === a.id && x.b === b.id) || (x.a === b.id && x.b === a.id)) {
-      if (x.type === "enemy") return "enemy";
-      if (x.type === "rival") r = "rival";
-      else if (!r) r = "lover";
-    }
+    const fwd = x.a === a.id && x.b === b.id,
+      back = x.a === b.id && x.b === a.id && x.mutual !== false;
+    if (!fwd && !back) continue;
+    if (x.type === "enemy") return "enemy";
+    if (x.type === "rival") r = "rival";
+    else if (!r) r = "lover";
   }
   return r;
 }

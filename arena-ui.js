@@ -374,7 +374,11 @@ function setup_text() {
   const rel = m.REL.filter((r) => r.a < m.P.length && r.b < m.P.length);
   if (rel.length) {
     out.push("", "Relationships:");
-    rel.forEach((r) => out.push(`- ${m.P[r.a].name || "#" + (r.a + 1)} / ${m.P[r.b].name || "#" + (r.b + 1)}: ${RN[r.type] || r.type}`));
+    rel.forEach((r) => {
+      const A = m.P[r.a].name || "#" + (r.a + 1),
+        B = m.P[r.b].name || "#" + (r.b + 1);
+      out.push(r.mutual === false ? `- ${A} → ${B}: ${RN[r.type] || r.type} (one-sided)` : `- ${A} / ${B}: ${RN[r.type] || r.type}`);
+    });
   }
   return out.concat("");
 }
