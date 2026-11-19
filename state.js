@@ -75,6 +75,17 @@ const wit = (t) => Math.max(0, t.wit + trait_total(t, "wit") + status_total(t, "
 const vend_mult = (from, to) =>
   (from.vd.some((v) => v.k === to.id) ? VEND_DEALT : 1) * (to.vd.some((v) => v.k === from.id) ? VEND_TAKEN : 1);
 
+/* How dangerous someone looks right now: attack, weapon, health and kills. */
+const threat = (t) => atk(t) + (t.w ? 3 : 0) + (4 * t.hp) / t.mhp + t.k * 1.5 + ability_mod(t.int) * 0.5;
+
+/* Talk-down history per pair of contestants: n = times it worked (each halves the next chance),
+   last = round of the latest success, fought = they have come to blows. */
+let TALK = {};
+const talk_entry = (a, b) => {
+  const k = a.id < b.id ? a.id + ":" + b.id : b.id + ":" + a.id;
+  return TALK[k] || (TALK[k] = { n: 0, last: R, fought: false });
+};
+
 const group_size = (g) => T.filter((t) => t.alive && t.g === g).length;
 
 /* How a feels about b. A row {a, b, type} means a feels it toward b; it also counts the other

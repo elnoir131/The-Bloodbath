@@ -84,6 +84,7 @@ const gang_bonus = (c) => atk(c) * 0.8 + 3;
 
 function fight(a, b, L, ca, cb) {
   COMBAT = true;
+  talk_entry(a, b).fought = true;
   const p = (t) =>
     atk(t) +
     (t.w ? 3 : 0) +
@@ -528,6 +529,7 @@ function step() {
     let b = null;
     if (pool.length && chance(0.5)) {
       let i = rnd(pool.length);
+      if (pool.length > 1 && chance(LEAN_CHANCE)) i = lean_target(a, pool);
       const m = pool.findIndex((x) => x.g === a.g);
       if (m >= 0 && chance(0.5)) i = m;
       const r = pool.findIndex((x) => relationship_of(a, x) || relationship_of(x, a));
@@ -660,7 +662,7 @@ function add_status(t, id, L) {
   /* Only harmful statuses can be resisted. Buffs (inspired, regenerating...) always land. */
   const harmful = d.dmg > 0 || d.atk < 0 || d.spd < 0 || d.wit < 0;
   if (harmful && chance(Math.max(0, ability_mod(t.con) * 0.05))) {
-    L.push([`${N(t)} resists the ${d.n.toLowerCase()}.`, "a", "🛡️"]);
+    L.push([`${N(t)} shrugs off the ${d.n.toLowerCase()} effect.`, "a", "🛡️"]);
     return;
   }
   const s = t.fx.find((x) => x.id === id);
@@ -735,7 +737,8 @@ function assist(x, y) {
     (ability_mod(x.int) + ability_mod(c.int)) * 0.01 +
     (x.fk && x.fk === c.fk ? 0.2 : 0) +
     (c.g === x.g ? 0.05 : 0) +
-    (foe(c) ? FOE_JOIN : 0);
+    (foe(c) ? FOE_JOIN : 0) +
+    Math.max(-0.1, Math.min(0.25, 0.02 * (threat(y) - threat(x))));
   return chance(Math.min(0.85, Math.max(0, p))) ? POOL.splice(i, 1)[0] : null;
 }
 
@@ -764,6 +767,21 @@ function fight_joint(a, b, L) {
   if (ca) HELPERS.add(ca.id);
   if (cb) HELPERS.add(cb.id);
   fight(a, b, L, ca, cb);
+}
+
+/* Index of the partner a leans toward: weaker and hurt ones early, the biggest threat late. */
+function lean_target(a, pool) {
+  const late = ENDGAME || alive().length <= Math.ceil(T.length * LATE_FRAC),
+    th = pool.map(threat),
+    top = Math.max(...th, 1),
+    ta = threat(a),
+    w = th.map((x) => (late ? Math.pow(Math.max(0, x) / top, 3) + 0.05 : Math.max(0.1, 1 + 0.08 * (ta - x))));
+  let r = rng() * w.reduce((s, x) => s + x, 0);
+  for (let i = 0; i < w.length; i++) {
+    r -= w[i];
+    if (r <= 0) return i;
+  }
+  return w.length - 1;
 }
 
 function pair(a, b, L) {
@@ -880,9 +898,70 @@ function pair(a, b, L) {
       return;
     }
   }
-  /* Charisma: a charming target can talk the aggressor down before any blow lands. */
-  const calm = Math.min(0.5, Math.max(0, 0.15 * ability_mod(b.cha) - 0.03 * ability_mod(a.cha)));
+  const ta = threat(a),
+    tb = threat(b);
+
+  /* A badly hurt aggressor may think twice, more so against someone more dangerous. */
+  if (a.hp < a.mhp * 0.4) {
+    const wary = Math.min(0.5, 0.15 + 0.02 * Math.max(0, tb - ta) + 0.3 * (0.4 - a.hp / a.mhp));
+    if (chance(wary)) {
+      L.push([`${N(a)} sizes up ${N(b)}, but is too hurt to risk it and backs off.`, "a", "🩹"]);
+      return;
+    }
+  }
+
+  /* Charisma: a charming target can talk the aggressor down before any blow lands. Each success
+     against the same person halves the next chance (it recovers one step per 3 quiet rounds),
+     and a past fight between them makes it harder. */
+  const tk = talk_entry(a, b),
+    eff = Math.max(0, tk.n - Math.floor((R - tk.last) / 3)),
+    calm =
+      Math.min(0.5, Math.max(0, 0.15 * ability_mod(b.cha) - 0.03 * ability_mod(a.cha) - (tk.fought ? 0.1 : 0))) *
+      Math.pow(0.5, eff);
   if (chance(calm)) {
+    tk.n++;
+    tk.last = R;
+    const gap = ta - tb;
+    /* A far more dangerous aggressor simply laughs it off. */
+    if (gap >= 5 && chance(Math.min(0.6, 0.06 * (gap - 4)))) {
+      L.push([`${N(b)} tries to talk ${N(a)} down, but ${N(a)} laughs it off and attacks.`, "h", "😏"]);
+      fight_joint(a, b, L);
+      return;
+    }
+    /* The calm talk can turn into teaming up. Leaving a group for another is far harder. */
+    if (!BAN && !ENDGAME && can_join(a) && can_join(b)) {
+      const sa = group_size(a.g),
+        sb = group_size(b.g),
+        mx = +$("#mgs").value || 3,
+        tp = Math.min(
+          0.5,
+          Math.max(0, 0.5 * (0.3 + (ability_mod(a.cha) + ability_mod(b.cha)) * 0.015 + (trait_total(a, "ally") + trait_total(b, "ally")) / 200 + (fac ? 0.2 : 0))),
+        );
+      if (sa > 1 && sb > 1) {
+        const val = (g) => alive().filter((t) => t.g === g).reduce((n, t) => n + threat(t), 0),
+          lp = tp * 0.3 * Math.min(2, Math.max(0.2, 1 + bt(a) / 25));
+        if (sb + 1 <= mx && val(b.g) + ta > val(a.g) && chance(lp)) {
+          const old = GN[a.g] ? GN[a.g].n : "their group";
+          if (!GN[b.g]) GN[b.g] = { n: "Team " + ++tc };
+          a.g = b.g;
+          a.left = true;
+          L.push([`${N(b)} talks ${N(a)} down, and ${N(a)} leaves ${old} to join ${GN[b.g].n}.`, "a", "🤝"]);
+          return;
+        }
+      } else if (chance(tp)) {
+        const j = join_group(a, b);
+        if (j) {
+          L.push([
+            sa === 1 && sb === 1
+              ? `${N(b)} talks ${N(a)} down, and they end up forming ${j.nm}.`
+              : `${N(b)} talks ${N(a)} down, and ${N(sb === 1 ? b : a)} joins ${j.nm}.`,
+            "a",
+            "🤝",
+          ]);
+          return;
+        }
+      }
+    }
     L.push([`${N(a)} sizes up ${N(b)}, but ${N(b)} talks ${N(a)} down and they part ways.`, "a", "🗣️"]);
     return;
   }

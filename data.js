@@ -273,6 +273,12 @@ const VEND_DEALT = 1.5,
 const GRIEF_BASE = 0.15,
   GRIEF_WIS = 0.03;
 
+/* Partner choice: this share of the time an initiator leans on threat when picking a partner.
+   Early on they go for weaker or hurt targets; late (endgame, or this fraction of the roster left)
+   they go for the most dangerous one. Groupmates and relationships still override it. */
+const LEAN_CHANCE = 0.35,
+  LATE_FRAC = 1 / 3;
+
 /* Extra chance that an enemy of the target joins someone else's attack on them. */
 const FOE_JOIN = 0.25;
 
@@ -336,4 +342,4 @@ const DEF_ST = [
   { id: "grief", n: "Grieving", ic: "💔", dmg: 0, atk: 2, spd: -2, wit: 0, dur: 3 },
 ];
 
-const RN = { lover: "💞 Love", rival: "⚡ Rivals", enemy: "💢 Enemies" };
+const RN = { lover: "💞 Lovers", rival: "⚡ Rivals", enemy: "💢 Enemies" };
