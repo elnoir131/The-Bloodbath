@@ -336,4 +336,4 @@ const DEF_ST = [
   { id: "grief", n: "Grieving", ic: "💔", dmg: 0, atk: 2, spd: -2, wit: 0, dur: 3 },
 ];
 
-const RN = { lover: "💞 Lovers", rival: "⚡ Rivals", enemy: "💢 Enemies" };
+const RN = { lover: "💞 Love", rival: "⚡ Rivals", enemy: "💢 Enemies" };
