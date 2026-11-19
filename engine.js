@@ -280,15 +280,39 @@ function run_disaster(d, L) {
 
   const out = (t) => {
     if (t.alive && t.hp <= 0) {
-      if (spare_last(t, L)) return;
       die(t, null, "a disaster");
       L.push([`${N(t)} does not survive.`, "k", "💀"]);
     }
   };
 
+  /* If this disaster would kill everyone still alive, the patrons favour one of them. */
+  const favourite = () => {
+    const doomed = alive().filter((t) => t.hp <= 0);
+    if (DISWIPE || !doomed.length || doomed.length < alive().length) return null;
+    const w = doomed.map((t) => t.cha * t.cha);
+    let r = rng() * w.reduce((a, b) => a + b, 0),
+      f = doomed[doomed.length - 1];
+    for (let i = 0; i < doomed.length; i++) {
+      r -= w[i];
+      if (r < 0) {
+        f = doomed[i];
+        break;
+      }
+    }
+    f.hp = 1;
+    return f;
+  };
+  const patron_line = (f) =>
+    L.push([`The patrons are won over by ${N(f)} and intervene at the last moment. ${N(f)} survives.`, "a", "🎁"]);
+
+  let fav = null;
   v.forEach((t) => {
     if (d.fx === "hurtrand") t.hp -= hp_amount(t, chance(0.3 + 0.04 * ability_mod(t.dex)) ? 0.15 : 0.3);
     else if (!d.fx.startsWith("st:")) t.hp = 0;
+  });
+  fav = favourite();
+
+  v.forEach((t) => {
     L.push([
       fill(d.v || "{a} is caught up in it.", t),
       d.fx === "hurtrand" || d.fx.startsWith("st:") ? "h" : "k",
@@ -297,13 +321,19 @@ function run_disaster(d, L) {
     out(t);
     if (d.fx.startsWith("st:")) add_status(t, d.fx.slice(3), L);
   });
+  if (fav) patron_line(fav);
+
+  if (d.fx === "hurtall") {
+    al.forEach((t) => {
+      if (t.alive) t.hp -= hp_amount(t, 0.15);
+    });
+    fav = favourite();
+    al.forEach(out);
+    if (fav) patron_line(fav);
+  }
 
   al.forEach((t) => {
     if (!t.alive) return;
-    if (d.fx === "hurtall") {
-      t.hp -= hp_amount(t, 0.15);
-      out(t);
-    }
     if (d.fx === "healall") heal(t, 0.25);
     if (d.fx === "foodall") gain_food(t, 10);
     if (d.fx === "thirstall") t.water = Math.max(0, t.water - 2);
@@ -735,10 +765,6 @@ function pair(a, b, L) {
     return;
   }
 
-  if (chance(Math.max(0, ability_mod(b.cha) * 0.05))) {
-    L.push([`${N(a)} squares up to ${N(b)}, but ${N(b)} talks them down.`, "a", "🗣️"]);
-    return;
-  }
   const dv = DUO.filter((e) => e.on);
   if (dv.length && chance(0.3)) {
     run_duo(pick_weighted(dv, b), a, b, L);

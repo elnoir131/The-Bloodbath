@@ -28,6 +28,7 @@ function save() {
         ban: $("#ban").checked,
         nob: $("#nob").checked,
         lockleave: $("#lockleave").checked,
+        diswipe: $("#diswipe").checked,
         mgs: $("#mgs").value,
         endgame: $("#endgame").value,
         dim: $("#dim").value,
@@ -116,6 +117,7 @@ function apply_setup(d) {
     $("#ban").checked = !!d.ban;
     $("#nob").checked = !!d.nob;
     $("#lockleave").checked = !!d.lockleave;
+    $("#diswipe").checked = !!d.diswipe;
     if (d.dim !== undefined) $("#dim").value = d.dim;
     if (typeof d.seed === "string") $("#seed").value = d.seed.slice(0, 24);
     if (typeof d.bg === "string" && d.bg.startsWith("data:image")) {
@@ -159,6 +161,7 @@ $("#expBtn").onclick = () => {
     ban: $("#ban").checked,
     nob: $("#nob").checked,
     lockleave: $("#lockleave").checked,
+        diswipe: $("#diswipe").checked,
     mgs: $("#mgs").value,
     endgame: $("#endgame").value,
   };

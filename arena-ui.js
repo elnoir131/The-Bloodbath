@@ -66,6 +66,7 @@ function start(sd) {
   BAN = $("#ban").checked;
   NOB = $("#nob").checked;
   LOCKLEAVE = $("#lockleave").checked;
+  DISWIPE = $("#diswipe").checked;
   GN = {};
   TM.forEach((m, j) => (GN[j] = { n: m.n }));
   tc = TM.length;
