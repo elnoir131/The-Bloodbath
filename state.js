@@ -71,6 +71,10 @@ const spd = (t) => Math.max(0, t.spd + trait_total(t, "spd") + status_total(t, "
 
 const wit = (t) => Math.max(0, t.wit + trait_total(t, "wit") + status_total(t, "wit"));
 
+/* Damage multiplier for vendetta: a griever hits their lover's killer harder, and takes more from them. */
+const vend_mult = (from, to) =>
+  (from.vd.some((v) => v.k === to.id) ? VEND_DEALT : 1) * (to.vd.some((v) => v.k === from.id) ? VEND_TAKEN : 1);
+
 const group_size = (g) => T.filter((t) => t.alive && t.g === g).length;
 
 function relationship_of(a, b) {

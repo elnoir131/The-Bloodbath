@@ -25,10 +25,11 @@ Since this is a vanilla HTML/CSS/JS project, there is no installation required.
 ### The Simulation Engine
 *   **Solo Events:** Unique encounters for each contestant (finding weapons, falling for traps, hunting,...).
 *   **Duo Events:** Dynamic interactions when contestants cross paths (fights, alliances, betrayals,...).
-*   **Joint Attacks:** Groupmates can pile onto one target. Every helper adds a flat bonus plus most of their own attack, and the outnumbered side finds it harder to escape, so being the one against several is dangerous unless you clearly out-stat them.
+*   **Joint Attacks:** Only groupmates, faction mates, or enemies of the target can pile onto someone's attack (never someone who is the attacker's enemy, and never the target's lover). Enemies of the target are tried first and are likelier to join. Every helper adds a flat bonus plus most of their own attack, and the outnumbered side finds it harder to escape, so being the one against several is dangerous unless you clearly out-stat them.
 *   **Disasters:** Random (or manually triggered 😈) arena-wide hazards like wildfires, floods, or toxic spores.
 *   **Status Effects:** Contestants can bleed, get poisoned, burn, or become infected. High CON allows them to resist though 😎.
 *   **Relationships:** Set up Lovers (who seek each other and grieve for the other's death), Rivals, and Enemies (who hunt each other or incite betrayal 🤡).
+*   **Grief and Vendettas:** When a lover is killed, the survivor is *Grieving* and gets a **vendetta** against the killer: they deal 1.5x damage to that killer and take 1.5x damage from them, and the killer becomes their enemy. Grief has no timer. It ends when the griever kills the killer (revenge), or by chance each round (15% plus 3% per WIS modifier point, between 5% and 50%). If the killer dies some other way the vendetta ends but the grief fades only by chance. A lover lost to a disaster or hunger causes grief with no vendetta. The multipliers and odds are constants near the top of `data.js`.
 *   **Traits & Jobs:** Assign passive traits per contestant and a specialized job (e.g., Medic, Soldier, Scout) to give them an edge.
 *   **Last Survivor Rule:** Thirst, hunger, and wounds will never wipe out the very last person standing; they cling on at 1 HP. If a *disaster* would kill everyone left, the patrons step in and spare one contestant, and the higher the CHA, the better the odds (a 18 CHA beats an 8 CHA about 5 times out of 6). Tick **Disasters can kill everyone** under Optional rules to turn the rescue off and allow a match with no winner.
 *   **Fair Fight:** When this many contestants or fewer remain (default 3, 0 = off), random disasters stop picking victims, so the last few settle it themselves. Area-wide disasters like heat waves and rain can still happen, and you can still trigger any disaster by hand.
@@ -41,8 +42,8 @@ Since this is a vanilla HTML/CSS/JS project, there is no installation required.
 *   **Auto-Save:** Your backgrounds, dim settings, roster, and custom events are automatically saved to your browser's local storage.
 *   **Round Summary:** Every round starts with a short header: how many are alive, who fell, who is low on health, and who fought. Handy when 24 people act in one round.
 *   **Epilogue:** When the match ends, a short prose recap names the winner, the first to fall, the deadliest contestant, and what claimed everyone else.
-*   **Seeds:** Every match has a seed. Use **Replay seed** to rerun it, or **Copy seed link** to share a `?seed=...` link that pre-fills the seed box. The same seed only plays out the same way with the same setup (roster, stats, events and rules), so share the exported setup too.
-*   **Export Log:** Download a clean Markdown (`.md`) text file of the entire match to share on forums or Discord if you have no life...
+*   **Seeds:** Every match has a seed. Use **Replay seed** to rerun it, or **Copy seed link** to share a `?seed=...` link that pre-fills the seed box. The same seed only plays out the same way with the same setup (roster, stats, events and rules), so share the exported setup file too. Sponsor gifts and disasters you trigger by hand are not recorded, so a match where you intervened can't be reproduced from the seed.
+*   **Export Log:** Download a Markdown (`.md`) file of the entire match to share on forums or Discord if you have no life... It ends with a readable setup section (rules, roster with stats, teams, traits, relationships).
 
 ## 🛠️ Customization Guide
 Almost everything in the game can be edited in the setup screen:

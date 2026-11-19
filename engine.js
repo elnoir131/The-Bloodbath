@@ -47,6 +47,7 @@ function die(t, by, why) {
   pend.push(t);
   dead.push(t);
   if (by) by.k++;
+  settle_vendettas(t, by);
   grief_of(t, by);
 }
 
@@ -131,7 +132,7 @@ function fight(a, b, L, ca, cb) {
   const roll = Math.round(
       12 + 2.5 * atk(w) + (w.w ? 8 : 0) + rnd(16) + (helper ? atk(helper) + (helper.w ? 4 : 0) : 0),
     ),
-    taken = Math.max(5, roll - 2 * ability_mod(l.con));
+    taken = Math.max(5, Math.round((roll - 2 * ability_mod(l.con)) * vend_mult(w, l)));
   w.dmg += Math.min(taken, Math.max(0, l.hp));
   l.hp -= taken;
   const how = w.w ? `with a ${w.w}` : "with bare hands";
@@ -237,7 +238,7 @@ function run_duo(e, a, b, L) {
     a.ex = b.ex = true;
   }
   if (e.fx === "hurtb") {
-    const d = Math.max(3, hp_amount(b, 0.12 + 0.015 * atk(a)) + rnd(10));
+    const d = Math.max(3, Math.round((hp_amount(b, 0.12 + 0.015 * atk(a)) + rnd(10)) * vend_mult(a, b)));
     b.hp -= d;
     a.dmg += d;
     a.ex = b.ex = true;
@@ -417,10 +418,19 @@ function upkeep(t, L) {
     t.dz = false;
   }
 
+  /* Grief has no timer: each round there is a chance the griever comes to terms with the loss. */
+  const gi = t.fx.findIndex((s) => s.id === "grief");
+  if (gi >= 0 && chance(Math.min(0.5, Math.max(0.05, GRIEF_BASE + ability_mod(t.wis) * GRIEF_WIS)))) {
+    t.fx.splice(gi, 1);
+    t.vd = [];
+    L.push([`${N(t)} slowly comes to terms with the loss.`, "a", "🕊️"]);
+  }
+
   t.fx = t.fx.filter((s) => {
     const d = SD(s.id);
     if (!d) return false;
     t.hp = Math.min(t.mhp, t.hp - Math.round((t.mhp * d.dmg) / 100));
+    if (s.id === "grief") return true;
     s.left--;
     return s.left > 0;
   });
@@ -456,6 +466,7 @@ function upkeep(t, L) {
 function step() {
   if (done) return;
   if (FIN) { finish(); render(); return; }
+
   R++;
   HELPERS = new Set();
   COMBAT = false;
@@ -529,7 +540,7 @@ function step() {
 
   const forced = QUIETN > 0 && QUIET >= QUIETN && gamemakers(L);
   if (forced) QUIET = 0;
-  else if (R % 3 === 0 || R > 8 || (alive().length > 8 && R > 5 && chance(0.3))) hazard(L);
+  else if (R % 3 === 0 || (R > 8 && chance(0.4)) || (alive().length > 8 && R > 5 && chance(0.3))) hazard(L);
 
   L.push(...XL.splice(0));
   const fell = pend.map((t) => t.id);
@@ -658,12 +669,28 @@ function add_status(t, id, L) {
   }
 }
 
+/* Something dying ends every vendetta aimed at them. Killing the target yourself also ends the grief. */
+function settle_vendettas(t, by) {
+  T.forEach((o) => {
+    const v = o.alive && o.vd.find((x) => x.k === t.id);
+    if (!v) return;
+    o.vd = o.vd.filter((x) => x !== v);
+    if (by === o) {
+      XL.push([`${N(o)} avenges ${N(T[v.f])} by killing ${N(t)}.`, "a", "🕯️"]);
+      if (!o.vd.length) o.fx = o.fx.filter((s) => s.id !== "grief");
+    } else {
+      XL.push([`${N(t)} is dead, and ${N(o)} loses the one they wanted revenge on.`, "h", "🥀"]);
+    }
+  });
+}
+
 function grief_of(t, by) {
   RT.filter((r) => r.type === "lover" && (r.a === t.id || r.b === t.id)).forEach((r) => {
     const o = T[r.a === t.id ? r.b : r.a];
     if (!o || !o.alive) return;
     const d = SD("grief");
     if (d && !o.fx.some((s) => s.id === "grief")) o.fx.push({ id: "grief", left: d.dur });
+    if (by && by !== o && !o.vd.some((v) => v.k === by.id)) o.vd.push({ k: by.id, f: t.id });
     if (
       by &&
       by !== o &&
@@ -682,17 +709,20 @@ function grief_of(t, by) {
   });
 }
 
+/* Who may join x's attack on y: a groupmate or faction mate of x, or anyone who is an enemy of y.
+   Enemies of y are tried first. Never an enemy of x, and never a lover of y. */
 function assist(x, y) {
-  const i = POOL.findIndex(
-    (t) =>
+  const mate = (t) => (!LOCKLEAVE || (!t.left && !x.left)) && (t.g === x.g || (x.fk && t.fk === x.fk)),
+    foe = (t) => relationship_of(t, y) === "enemy",
+    ok = (t) =>
       t.alive &&
       t !== x &&
       t !== y &&
-      (!LOCKLEAVE || (!t.left && !x.left)) &&
-      (t.g === x.g || (x.fk && t.fk === x.fk)) &&
+      relationship_of(t, x) !== "enemy" &&
       relationship_of(t, y) !== "lover" &&
-      relationship_of(t, x) !== "enemy",
-  );
+      (mate(t) || foe(t));
+  let i = POOL.findIndex((t) => ok(t) && foe(t));
+  if (i < 0) i = POOL.findIndex(ok);
   if (i < 0) return null;
   const c = POOL[i];
   const p =
@@ -701,15 +731,33 @@ function assist(x, y) {
     (trait_total(x, "coord") + trait_total(c, "coord")) / 100 +
     (ability_mod(x.int) + ability_mod(c.int)) * 0.01 +
     (x.fk && x.fk === c.fk ? 0.2 : 0) +
-    (c.g === x.g ? 0.05 : 0);
+    (c.g === x.g ? 0.05 : 0) +
+    (foe(c) ? FOE_JOIN : 0);
   return chance(Math.min(0.85, Math.max(0, p))) ? POOL.splice(i, 1)[0] : null;
 }
 
 function fight_joint(a, b, L) {
   const ca = assist(a, b),
     cb = ca ? null : assist(b, a);
-  if (ca) L.push([`${N(a)} and ${N(ca)} strike ${N(b)} together.`, "h", "⚔️"]);
-  if (cb) L.push([`${N(b)} and ${N(cb)} close ranks against ${N(a)}.`, "h", "⚔️"]);
+  /* A helper who is only there because they hate the target gets their own line. */
+  const grudge = (c, lead, tgt) =>
+    relationship_of(c, tgt) === "enemy" && c.g !== lead.g && !(lead.fk && c.fk === lead.fk);
+  if (ca)
+    L.push([
+      grudge(ca, a, b)
+        ? `${N(ca)} has a score to settle with ${N(b)} and joins ${N(a)}'s attack.`
+        : `${N(a)} and ${N(ca)} strike ${N(b)} together.`,
+      "h",
+      "⚔️",
+    ]);
+  if (cb)
+    L.push([
+      grudge(cb, b, a)
+        ? `${N(cb)} has a score to settle with ${N(a)} and joins ${N(b)}'s defence.`
+        : `${N(b)} and ${N(cb)} close ranks against ${N(a)}.`,
+      "h",
+      "⚔️",
+    ]);
   if (ca) HELPERS.add(ca.id);
   if (cb) HELPERS.add(cb.id);
   fight(a, b, L, ca, cb);

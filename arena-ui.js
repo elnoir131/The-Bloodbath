@@ -46,6 +46,7 @@ function start(sd) {
     ex: false,
     dz: false,
     hg: false,
+    vd: [],
     round: undefined,
     why: "",
   }));
@@ -175,6 +176,7 @@ function take_snap() {
     inf: t.inf,
     dz: t.dz,
     hg: t.hg,
+    vd: t.vd.map((x) => ({ ...x })),
     g: t.g,
     left: t.left,
     round: t.round,
@@ -292,7 +294,7 @@ function render() {
 
   const detail = (t) =>
     t.alive
-      ? `<span class="meta dt">${abil(t)}</span><span class="meta dt">⚔${atk(t)} 💨${spd(t)} 🧠${wit(t)} · ❤${Math.max(0, Math.round(t.hp))}/${t.mhp} · 💧${+t.water.toFixed(1)} 🍖${Math.round(t.food)}${t.inf ? " · 🦠 infected" : ""}${t.left ? " · left a team" : ""}</span><span class="meta dt">🍶${t.bottle} 🥫${t.ration} 🩹${t.kit}</span>`
+      ? `<span class="meta dt">${abil(t)}</span><span class="meta dt">⚔${atk(t)} 💨${spd(t)} 🧠${wit(t)} · ❤${Math.max(0, Math.round(t.hp))}/${t.mhp} · 💧${+t.water.toFixed(1)} 🍖${Math.round(t.food)}${t.inf ? " · 🦠 infected" : ""}${t.vd && t.vd.length ? " · 🗡 vendetta: " + t.vd.map((v) => esc(T[v.k].n)).join(", ") : ""}${t.left ? " · left a team" : ""}</span><span class="meta dt">🍶${t.bottle} 🥫${t.ration} 🩹${t.kit}</span>`
       : `<span class="meta dt">Out in round ${t.round}: ${esc(t.why)}</span>`;
 
   const row = (t) => {
@@ -347,6 +349,36 @@ $("#roster").addEventListener("keydown", (e) => {
   }
 });
 
+/* Human-readable setup section, so a log is understandable without the original setup file. */
+function setup_text() {
+  const m = setup_snapshot(true);
+  const cell = (x) => String(x).replace(/\|/g, "\\|").replace(/\n/g, " ");
+  const tr = (id) => (m.TRAITS.find((x) => x.id === id) || {}).n || id;
+  const rules = [
+    m.mode === "grp" ? `last group can share (max group ${m.mgs})` : `one survivor (endgame alert at ${m.endgame})`,
+    m.ban && "teaming banned",
+    m.nob && "betrayal banned",
+    m.lockleave && "leavers cannot rejoin",
+    m.diswipe && "disasters can kill everyone",
+    `fair fight at ${m.fairn}`,
+    `Gamemakers after ${m.quiet} quiet rounds`,
+  ].filter(Boolean);
+  const out = ["## Setup", "", "Rules: " + rules.join(", ") + ".", ""];
+  out.push("| # | Name | Team | STR | DEX | CON | INT | WIS | CHA | Weapon | Job / traits | Faction |");
+  out.push("|---|------|------|-----|-----|-----|-----|-----|-----|--------|--------------|---------|");
+  m.P.forEach((p, i) =>
+    out.push(
+      `| ${i + 1} | ${cell(p.name || "Nameless")} | ${p.team >= 0 && m.TN[p.team] ? cell(m.TN[p.team]) : "solo"} | ${p.str} | ${p.dex} | ${p.con} | ${p.int} | ${p.wis} | ${p.cha} | ${p.weapon || "-"} | ${cell([p.job && tr(p.job), ...p.traits.map(tr)].filter(Boolean).join(", ") || "-")} | ${cell(p.fac || "-")} |`,
+    ),
+  );
+  const rel = m.REL.filter((r) => r.a < m.P.length && r.b < m.P.length);
+  if (rel.length) {
+    out.push("", "Relationships:");
+    rel.forEach((r) => out.push(`- ${m.P[r.a].name || "#" + (r.a + 1)} / ${m.P[r.b].name || "#" + (r.b + 1)}: ${RN[r.type] || r.type}`));
+  }
+  return out.concat("");
+}
+
 function export_log() {
   const nm = (x) => x.replace(/\u0001(\d+)\u0002/g, (m, k) => T[k].n);
   const out = [`# The Bloodbath (seed ${SEED})`, ""];
@@ -357,14 +389,8 @@ function export_log() {
     else p.L.forEach(([t]) => out.push("- " + nm(t.replace(/<[^>]+>/g, ""))));
     out.push("");
   });
-  const b = new Blob([out.join("\n")], { type: "text/markdown" }),
-    a = document.createElement("a");
-  a.href = URL.createObjectURL(b);
-  a.download = `arena-seed-${SEED}.md`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  out.push(...setup_text());
+  download_file(`arena-seed-${SEED}.md`, out.join("\n"), "text/markdown");
 }
 
 $("#go").onclick = () => start();
@@ -379,7 +405,8 @@ $("#dl").onclick = export_log;
 
 $("#replay").onclick = () => start(SEED);
 
-/* Link that pre-fills the seed. The same seed only replays the same match with the same setup. */
+/* Link that pre-fills the seed. The same seed only replays the same match with the same setup,
+   so share the exported setup file too. */
 $("#share").onclick = async () => {
   const url = location.href.split(/[?#]/)[0] + "?seed=" + SEED,
     b = $("#share");

@@ -148,8 +148,9 @@ $("#wipe").onclick = () => {
 };
 
 /* ---------- Import / Export ---------- */
-$("#expBtn").onclick = () => {
-  const data = {
+/* Everything that decides how a match plays out, minus photos when no_img is set. */
+function setup_snapshot(no_img) {
+  const d = deep_clone({
     ver: 14,
     P: P.slice(0, contestant_count()),
     TN,
@@ -165,22 +166,29 @@ $("#expBtn").onclick = () => {
     ban: $("#ban").checked,
     nob: $("#nob").checked,
     lockleave: $("#lockleave").checked,
-        diswipe: $("#diswipe").checked,
-        fairn: $("#fairn").value,
-        quiet: $("#quiet").value,
+    diswipe: $("#diswipe").checked,
+    fairn: $("#fairn").value,
+    quiet: $("#quiet").value,
     mgs: $("#mgs").value,
     endgame: $("#endgame").value,
-  };
+  });
+  if (no_img) d.P.forEach((p) => (p.img = ""));
+  return d;
+}
 
-  const b = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-  const a = document.createElement("a");
+function download_file(name, text, type) {
+  const b = new Blob([text], { type }),
+    a = document.createElement("a");
   a.href = URL.createObjectURL(b);
-  a.download = `bloodbath-setup-${Date.now()}.json`;
+  a.download = name;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-};
+}
+
+$("#expBtn").onclick = () =>
+  download_file(`bloodbath-setup-${Date.now()}.json`, JSON.stringify(setup_snapshot(), null, 2), "application/json");
 
 $("#impBtn").addEventListener("change", (e) => {
   const f = e.target.files[0];

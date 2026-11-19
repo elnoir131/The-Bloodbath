@@ -264,6 +264,18 @@ const ZFX = [
 const FORAGE_BASE = 0.12,
   FORAGE_WIT = 0.025;
 
+/* Vendetta: someone grieving a lover deals and takes more damage against that lover's killer. */
+const VEND_DEALT = 1.5,
+  VEND_TAKEN = 1.5;
+
+/* Grief has no timer. It ends when the griever kills the killer, or each round by chance
+   (base + WIS modifier * step, kept between 5% and 50%). */
+const GRIEF_BASE = 0.15,
+  GRIEF_WIS = 0.03;
+
+/* Extra chance that an enemy of the target joins someone else's attack on them. */
+const FOE_JOIN = 0.25;
+
 const OLD = { str: "atk", dex: "spd", wis: "wit" };
 
 const TF = [
