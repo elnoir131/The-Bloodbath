@@ -79,12 +79,6 @@ function infect(t, L) {
   L.push([`${N(t)}'s wound turns bad and a fever sets in.`, "h", "🦠"]);
 }
 
-/* Until fights get their own expandable log item, flatten one to its summary plus the key beats. */
-function fight_to_lines(f, L) {
-  L.push([f.summary, f.cls, f.icon]);
-  f.exchanges.forEach((x) => x.lines.forEach((l) => l[3] && L.push(l.slice(0, 3))));
-}
-
 const fill = (x, a, b, w) =>
   x
     .replace(/\{a\}/g, N(a))
@@ -688,7 +682,7 @@ function fight_joint(a, b, L, deadly) {
     ]);
   if (ca) HELPERS.add(ca.id);
   if (cb) HELPERS.add(cb.id);
-  fight_to_lines(resolve_fight(a, b, ca, cb, { deadly }), L);
+  L.push({ kind: "fight", ...resolve_fight(a, b, ca, cb, { deadly }) });
 }
 
 /* Index of the partner a leans toward: weaker and hurt ones early, the biggest threat late. */
@@ -770,10 +764,15 @@ function pair(a, b, L) {
         rel === "enemy" || rel === "rival"
           ? `${N(w)} finally strikes ${N(l)}, settling an old grudge.`
           : `${N(w)} turns on ${N(l)} in the middle of the night.`,
-        "k",
+        "h",
         "🔪",
       ]);
-      die(l, w);
+      L.push({ kind: "fight", ...resolve_fight(w, l, null, null, { deadly: true, surprise: true }) });
+      if (w.alive && l.alive) {
+        w.g = gid++;
+        w.left = true;
+        L.push([`${N(w)} cannot finish it and leaves the group.`, "h", "🚶"]);
+      }
       return;
     }
     if (!BAN && (ENDGAME || (rel !== "lover" && chance(0.1 + (rel ? 0.15 : 0))))) {

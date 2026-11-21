@@ -3,7 +3,8 @@
 /* ---------- match ---------- */
 let PG = [],
   PI = 0,
-  VIEW_SNAPSHOT = null;
+  VIEW_SNAPSHOT = null,
+  FOPEN = new Set();
 
 function start(sd) {
   const raw = $("#seed").value.trim();
@@ -82,6 +83,7 @@ function start(sd) {
   PG = [];
   PI = 0;
   VIEW_SNAPSHOT = null;
+  FOPEN = new Set();
   show_page(false);
 
   $("#next").disabled = $("#spB").disabled = $("#dsB").disabled = false;
@@ -145,12 +147,15 @@ function show_page(live) {
   $("#log").innerHTML = p
     ? p.raw ||
       `<div class="rd"><h3>${p.h}</h3>` + summary_html(p.sum) +
-        p.L.map(([t, c, e]) => `<div class="ev ${c}">${pics(t, e)}<div>${fmt(t)}</div></div>`).join(
-          "",
-        ) +
+        p.L.map((r, i) =>
+          r.kind === "fight"
+            ? fight_html(r, PI + ":" + i)
+            : `<div class="ev ${r[1]}">${pics(r[0], r[2])}<div>${fmt(r[0])}</div></div>`,
+        ).join("") +
         "</div>"
     : "";
   $("#log").scrollTop = 0;
+  sync_fights();
   $("#pgl").textContent = p ? `${p.h} · ${PI + 1} of ${PG.length}` : "No rounds yet";
   $("#pp").disabled = PI <= 0;
   $("#pn").disabled = $("#pl").disabled = PI >= PG.length - 1;
@@ -158,6 +163,75 @@ function show_page(live) {
   VIEW_SNAPSHOT = !live && p && p.snap ? p.snap : null;
   render();
 }
+
+/* ---------- fights: one collapsible log item each ---------- */
+const FIGHT_LABEL = { ambush: "Ambush", volley: "Opening volley", exit: "Breaking off" };
+
+function fight_html(f, key) {
+  const ids = f.sides.flatMap((s) => s.ids),
+    side = (s) => s.ids.map((id) => av(T[id])).join(""),
+    chips = f.sides
+      .flatMap((s) =>
+        s.ids.map((id, j) => {
+          const lost = s.hpBefore[j] - s.hpAfter[j],
+            down = s.hpAfter[j] <= 0;
+          return `<span class="hpc${down ? " dn" : ""}">${down ? "💀 " : ""}${esc(T[id].n)} ${lost > 0 ? "−" + lost : "unhurt"}</span>`;
+        }),
+      )
+      .join(""),
+    rows = f.exchanges
+      .filter((x) => x.lines.length)
+      .map(
+        (x) =>
+          `<div class="fx"><h5>${x.kind ? FIGHT_LABEL[x.kind] : "Exchange " + x.n}</h5>` +
+          x.lines
+            .map(
+              ([t, c, e]) =>
+                `<div class="fxr ${c || ""}">${e ? `<span class="fxi" aria-hidden="true">${esc(e)}</span>` : ""}<span>${fmt(t)}</span></div>`,
+            )
+            .join("") +
+          "</div>",
+      )
+      .join("");
+  return `<div class="ev fight ${f.cls}" data-key="${esc(key)}">
+    <div class="fhead" role="button" tabindex="0" aria-expanded="false">
+      <div class="pics${ids.length > 4 ? " many" : ""}">${side(f.sides[0])}<span class="ic" aria-hidden="true">${esc(f.icon)}</span>${side(f.sides[1])}</div>
+      <div class="fline"><div>${fmt(f.summary)}</div><span class="farrow" aria-hidden="true">▸</span></div>
+      <div class="fchips">${chips}</div>
+    </div>
+    <div class="fdet" hidden>${rows}</div>
+  </div>`;
+}
+
+/* Open or close every fight in the log to match "Show details" and each fight's own state. */
+function sync_fights() {
+  document.querySelectorAll("#log .fight").forEach((el) => {
+    const open = SHOWALL || FOPEN.has(el.dataset.key);
+    el.classList.toggle("o", open);
+    el.querySelector(".fdet").hidden = !open;
+    el.querySelector(".fhead").setAttribute("aria-expanded", open);
+  });
+}
+
+function toggle_fight(el) {
+  if (!el) return;
+  const k = el.dataset.key;
+  if (FOPEN.has(k)) FOPEN.delete(k);
+  else FOPEN.add(k);
+  sync_fights();
+}
+
+$("#log").addEventListener("click", (e) => {
+  const h = e.target.closest(".fhead");
+  if (h) toggle_fight(h.closest(".fight"));
+});
+
+$("#log").addEventListener("keydown", (e) => {
+  if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("fhead")) {
+    e.preventDefault();
+    toggle_fight(e.target.closest(".fight"));
+  }
+});
 
 function take_snap() {
   return T.map((t) => ({
@@ -220,6 +294,7 @@ $("#dtog").onclick = () => {
   SHOWALL = !SHOWALL;
   $("#dtog").textContent = SHOWALL ? "Hide details" : "Show details";
   render();
+  sync_fights();
 };
 
 function sponsor() {
@@ -381,14 +456,29 @@ function setup_text() {
   return out.concat("");
 }
 
+const plain = (x) => x.replace(/\u0001(\d+)\u0002/g, (m, k) => T[k].n);
+
+/* A fight is its summary line with each exchange nested beneath it. */
+function log_md(r) {
+  if (r.kind !== "fight") return ["- " + plain(r[0].replace(/<[^>]+>/g, ""))];
+  const hp = r.sides.flatMap((s) =>
+      s.ids.map((id, j) => `${T[id].n} ${s.hpAfter[j] <= 0 ? "fell" : "-" + (s.hpBefore[j] - s.hpAfter[j])}`),
+    ),
+    out = [`- ${plain(r.summary)} _(${hp.join(", ")})_`];
+  r.exchanges.forEach((x) => {
+    if (x.lines.length)
+      out.push(`  - ${x.kind ? FIGHT_LABEL[x.kind] : "Exchange " + x.n}: ${x.lines.map((l) => plain(l[0])).join(" ")}`);
+  });
+  return out;
+}
+
 function export_log() {
-  const nm = (x) => x.replace(/\u0001(\d+)\u0002/g, (m, k) => T[k].n);
   const out = [`# The Bloodbath (seed ${SEED})`, ""];
   PG.forEach((p) => {
     out.push(`## ${p.h}`);
     if (p.sum) out.push(summary_text(p.sum), "");
     if (p.txt) out.push(p.txt);
-    else p.L.forEach(([t]) => out.push("- " + nm(t.replace(/<[^>]+>/g, ""))));
+    else p.L.forEach((r) => out.push(...log_md(r)));
     out.push("");
   });
   out.push(...setup_text());

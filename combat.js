@@ -116,20 +116,20 @@ function resolve_fight(a, b, ca, cb, opts) {
     return lh && lh.alive ? lh : pick(foes);
   };
 
-  const attack = (att, n, lines, forced) => {
+  const attack = (att, n, lines, forced, bonus) => {
     const tgt = forced || choose(att);
     if (!tgt) return;
     const i = side_of.get(att),
       w = weapon_stats(att.w),
       how = att.w ? ` with a ${att.w}` : " with bare hands",
-      acc = accuracy(att) + (n === 0 ? 0 : position_mod(att, tgt, n)),
+      acc = accuracy(att) + (n === 0 ? 0 : position_mod(att, tgt, n)) + (bonus ? bonus.acc : 0),
       ev = evade(tgt) - SWARM_PEN * (sides[i].filter((x) => x.alive).length - 1);
     if (!chance(hit_chance(acc, ev))) {
       const verb = has_tag(w, "ranged") ? "shoots at" : att.w ? "attacks" : "swings at";
       lines.push([`${N(att)} ${verb} ${N(tgt)} and misses.`, "a"]);
       return;
     }
-    const crit = chance(crit_chance(att)),
+    const crit = chance(Math.min(1, crit_chance(att) * (bonus ? bonus.crit : 1))),
       taken = roll_damage(att, tgt, crit);
     att.dmg += Math.min(taken, Math.max(0, tgt.hp));
     tgt.hp -= taken;
@@ -291,6 +291,13 @@ function resolve_fight(a, b, ca, cb, opts) {
     }
   };
 
+  /* Surprise (a betrayal): the attacker lands a free opening blow before anything else happens. */
+  if (opts.surprise) {
+    const lines = [];
+    key_lines(lines, () => attack(a, 0, lines, b, { acc: AMBUSH_ACC, crit: AMBUSH_CRIT }));
+    item.exchanges.push({ n: 0, kind: "ambush", lines });
+  }
+
   /* Opening volley: archers shoot before anyone closes in. */
   const archers = sides.flat().filter(ranged_of);
   if (archers.length) {
@@ -298,7 +305,7 @@ function resolve_fight(a, b, ca, cb, opts) {
     by_speed(archers).forEach((t) => {
       if (!lead_down() && t.alive) act(t, 0, lines);
     });
-    item.exchanges.push({ n: 0, lines });
+    item.exchanges.push({ n: 0, kind: "volley", lines });
   }
 
   /* On the first exchange a reach wielder strikes before anyone without reach. */
@@ -306,7 +313,7 @@ function resolve_fight(a, b, ca, cb, opts) {
     const lines = [];
     if (n > 1) check_exits(n, lines);
     if (lead_down() || ended) {
-      if (lines.length) item.exchanges.push({ n, lines });
+      if (lines.length) item.exchanges.push({ n, kind: "exit", lines });
       break;
     }
     const order = by_speed(

@@ -412,6 +412,31 @@ ol { text-align: left; padding-left: 22px; }
 .bar.opts .optnums { display: flex; flex-wrap: wrap; gap: 8px 20px; }
 .bar.opts input[type=number] { width: 64px; padding: 5px 8px; text-align: center; }
 
+/* Fights: one collapsible item, summary and HP changes shown, exchanges on expand */
+.fight .fhead { cursor: pointer; border-radius: 6px; }
+.fight .fline { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; }
+.fight .farrow { flex: none; color: var(--mute); transition: transform .15s; }
+.fight.o .farrow { transform: rotate(90deg); }
+.fchips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.hpc {
+  font-size: 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 1px 8px;
+  background: var(--panel);
+}
+.hpc.dn { border-color: var(--dead); color: var(--dead); }
+.fdet { margin-top: 8px; padding-left: 8px; border-left: 2px dashed var(--line); }
+.fx h5 {
+  margin: 8px 0 4px;
+  font-size: 12px;
+  color: var(--mute);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+.fxr { display: flex; gap: 6px; font-size: 13px; padding: 2px 0 2px 8px; border-left: 3px solid var(--line); margin-bottom: 2px; }
+.fxi { flex: none; }
+
 /* Mobile */
 @media (max-width: 600px) {
   .pg { flex-direction: column; }

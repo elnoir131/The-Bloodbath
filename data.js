@@ -71,6 +71,9 @@ const FLEE_HP = 0.4,
   FLEE_OUTNUM_HP = 0.6;
 const YIELD_HP = 0.35,
   YIELD_GAP = 0.25;
+/* A betrayer's opening blow: bonus accuracy and a multiplier on crit chance. */
+const AMBUSH_ACC = 2,
+  AMBUSH_CRIT = 2;
 const TRIBUTE_P = 0.6,
   TRIBUTE_WEAPON_P = 0.5,
   SPARE_GRUDGE = 0.2;
