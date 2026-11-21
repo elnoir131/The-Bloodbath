@@ -106,14 +106,17 @@ const icon = (x) => {
   return "";
 };
 
+/* An event's icon may be one emoji or a pair. With two people a pair frames them: first icon between
+   them, second after. */
 function pics(x, e0) {
   const i = ids(x),
     e = e0 || icon(x),
-    b = e ? `<span class="ic" aria-hidden="true">${esc(e)}</span>` : "";
+    bs = (Array.isArray(e) ? e : [e]).filter(Boolean).map((m) => `<span class="ic" aria-hidden="true">${esc(m)}</span>`),
+    b = bs.join("");
   if (!i.length && !b) return "";
   const h =
     i.length === 2
-      ? av(T[i[0]]) + b + av(T[i[1]])
+      ? av(T[i[0]]) + (bs[0] || "") + av(T[i[1]]) + (bs[1] || "")
       : i
           .slice(0, 12)
           .map((k) => av(T[k]))

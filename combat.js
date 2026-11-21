@@ -85,7 +85,7 @@ function resolve_fight(a, b, ca, cb, opts) {
     lead_of = (i) => active(i)[0] || null /* the first still in it: a helper steps up if the lead is out */,
     deadly = !!opts.deadly || is_deadly(a, b),
     bound = (t) => deadly && (t === a || t === b),
-    cap = deadly ? DEATH_CAP : FIGHT_CAP;
+    cap = opts.scuffle ? SCUFFLE_CAP : deadly ? DEATH_CAP : FIGHT_CAP;
 
   const item = {
     type: "fight",
@@ -106,6 +106,11 @@ function resolve_fight(a, b, ca, cb, opts) {
     lost = [0, 0] /* allies fallen or gone, per side */;
   let final = null /* how the last departure happened */,
     standdown = false;
+  const events = [] /* every departure, in order: a death, an escape or a yield */,
+    note = (f) => {
+      final = f;
+      events.push(f);
+    };
   const over = () => standdown || !active(0).length || !active(1).length;
 
   /* Leads go for the opposing lead 70% of the time and otherwise for one of its helpers.
@@ -127,9 +132,11 @@ function resolve_fight(a, b, ca, cb, opts) {
       how = att.w ? ` with a ${att.w}` : " with bare hands",
       acc = accuracy(att) + (n === 0 ? 0 : position_mod(att, tgt, n)) + (bonus ? bonus.acc : 0),
       ev = evade(tgt) - SWARM_PEN * (active(i).length - 1);
-    if (!chance(hit_chance(acc, ev))) {
+    const odds = hit_chance(acc, ev),
+      pct = Math.round(100 * odds);
+    if (!chance(odds)) {
       const verb = has_tag(w, "ranged") ? "shoots at" : att.w ? "attacks" : "swings at";
-      lines.push([`${N(att)} ${verb} ${N(tgt)} and misses.`, "a"]);
+      lines.push([`${N(att)} ${verb} ${N(tgt)} and misses (${pct}% to hit).`, "a"]);
       return;
     }
     const crit = chance(Math.min(1, crit_chance(att) * (bonus ? bonus.crit : 1))),
@@ -139,7 +146,7 @@ function resolve_fight(a, b, ca, cb, opts) {
     hit_by.set(tgt, att);
     if (tgt === lead_of(1 - i)) last_hit[1 - i] = att;
     lines.push([
-      `${N(att)} ${crit ? "lands a critical blow on" : "hits"} ${N(tgt)}${how} for ${taken}.`,
+      `${N(att)} ${crit ? "lands a critical blow on" : "hits"} ${N(tgt)}${how} for ${taken} (${pct}% to hit).`,
       "h",
       crit ? "💥" : "🗡️",
       crit,
@@ -155,7 +162,7 @@ function resolve_fight(a, b, ca, cb, opts) {
       lines.push([`${N(tgt)} falls to ${N(att)}${how}.`, "k", "💀"]);
       loot_body(att, tgt, lines);
       lost[side_of.get(tgt)]++;
-      final = { kind: "death", x: tgt, other: att, how };
+      note({ kind: "death", x: tgt, other: att, how });
       return;
     }
     if (taken >= INFECT_FRAC * tgt.mhp && !tgt.inf && chance(0.3 - ability_mod(tgt.con) * 0.03))
@@ -191,7 +198,7 @@ function resolve_fight(a, b, ca, cb, opts) {
     leave = (x, info) => {
       gone.add(x);
       lost[side_of.get(x)]++;
-      final = Object.assign({ x }, info);
+      note(Object.assign({ x }, info));
     };
 
   /* The loser hands over a supply item, and a weapon if the winner has none. Returns what changed hands. */
@@ -240,7 +247,7 @@ function resolve_fight(a, b, ca, cb, opts) {
       lines.push([`${N(y)} shows no mercy and finishes ${N(x)}.`, "k", "💀", true]);
       loot_body(y, x, lines);
       lost[side_of.get(x)]++;
-      final = { kind: "death", x, other: y, how: " without mercy" };
+      note({ kind: "death", x, other: y, how: " without mercy" });
       return true;
     }
     let gave = [];
@@ -314,10 +321,19 @@ function resolve_fight(a, b, ca, cb, opts) {
     }
   };
 
-  /* Surprise (a betrayal): the attacker lands a free opening blow before anything else happens. */
-  if (opts.surprise) {
-    const lines = [];
+  /* Surprise (a betrayal or an ambush): the attacker lands a free opening blow before anything else happens.
+     A hit-and-run ambusher then tries to slip away; if they are caught, the fight goes on. */
+  if (opts.surprise || opts.hitrun) {
+    const lines = [],
+      before = b.hp;
     key_lines(lines, () => attack(a, 0, lines, b, { acc: AMBUSH_ACC, crit: AMBUSH_CRIT }));
+    if (opts.hitrun && !over()) {
+      const p = clamp(0.5 + 0.06 * (spd(a) - spd(b)) + AMBUSH_ESCAPE, 0.15, 0.95) - (ranged_of(b) ? 0.2 : 0);
+      if (chance(Math.max(0.05, p))) {
+        leave(a, { kind: "retreat", other: b, hitrun: true, dealt: Math.max(0, Math.round(before - b.hp)) });
+        lines.push([`${N(a)} slips away.`, "h", "💨", true]);
+      } else lines.push([`${N(b)} catches ${N(a)} before they can get away.`, "h", "🏃", true]);
+    }
     item.exchanges.push({ n: 0, kind: "ambush", lines });
   }
 
@@ -352,37 +368,45 @@ function resolve_fight(a, b, ca, cb, opts) {
   }
 
   item.sides.forEach((s, i) => (s.hpAfter = sides[i].map((t) => Math.max(0, Math.round(t.hp)))));
-  if (standdown) {
-    item.outcome = "standdown";
-    item.summary = `${N(a)} and ${N(b)} trade blows, then both back off, bloodied.`;
-  } else if (over() && final) {
+
+  /* One sentence per departure, in order; the last one ends the fight unless it ended some other way. */
+  const text_of = (f, last) =>
+    f.kind === "death"
+      ? last
+        ? `${N(f.other)} catches ${N(f.x)} and ends the fight${f.how}.`
+        : `${N(f.other)} cuts down ${N(f.x)}${f.how}.`
+      : f.kind === "retreat"
+        ? f.hitrun
+          ? `${N(f.x)} ambushes ${N(f.other)}${f.dealt > 0 ? ", hurting them," : ", misses,"} and slips away.`
+          : `${N(f.x)} breaks away from ${N(f.other)} and escapes.`
+        : f.mode === "recruit"
+          ? `${N(f.x)} yields, and ${N(f.other)} lets them join ${f.nm}.`
+          : `${N(f.x)} yields to ${N(f.other)}, who lets them go${f.gave.length ? ", taking " + f.gave.join(" and ") : ", taking nothing"}.`;
+
+  const done = over() && !standdown && final,
+    words = events.map((f, k) => text_of(f, done && k === events.length - 1));
+  if (standdown || (!done && opts.scuffle)) words.push(`${N(a)} and ${N(b)} trade blows, then both back off, bloodied.`);
+  else if (!done) words.push(`${N(lead_of(0))} and ${N(lead_of(1))} trade blows until both are spent, then back off, bloodied.`);
+  item.summary = words.join(" ");
+  if (standdown) item.outcome = "standdown";
+  else if (done) {
     const f = final;
     item.winner = f.other.id;
     item.loser = f.x.id;
     if (f.kind === "death") {
       item.outcome = "death";
-      item.summary = `${N(f.other)} catches ${N(f.x)} and ends the fight${f.how}.`;
       item.cls = "k";
       item.icon = "🗡️💀";
       if (f.how === " without mercy") item.mode = "kill";
     } else if (f.kind === "retreat") {
       item.outcome = "retreat";
-      item.summary = `${N(f.x)} breaks away from ${N(f.other)} and escapes.`;
       item.icon = "💨";
     } else {
       item.outcome = "yield";
       item.mode = f.mode;
       item.cls = "a";
-      if (f.mode === "recruit") {
-        item.summary = `${N(f.x)} yields, and ${N(f.other)} lets them join ${f.nm}.`;
-        item.icon = "🤝";
-      } else {
-        item.summary = `${N(f.x)} yields to ${N(f.other)}, who lets them go${f.gave.length ? ", taking " + f.gave.join(" and ") : ", taking nothing"}.`;
-        item.icon = "🕊️";
-      }
+      item.icon = f.mode === "recruit" ? "🤝" : "🕊️";
     }
-  } else {
-    item.summary = `${N(a)} and ${N(b)} trade blows until both are spent, then back off, bloodied.`;
   }
   return item;
 }

@@ -145,20 +145,12 @@ function run_duo(e, a, b, L) {
     L.push([`${N(a)} tries to take supplies from ${N(b)}, but ${N(b)} wakes in time.`, "h", "💰"]);
     return;
   }
-  if (e.fx === "hurtboth") {
-    const da = hp_amount(a, 0.15),
-      db = hp_amount(b, 0.15);
-    a.hp -= da;
-    b.hp -= db;
-    a.dmg += da;
-    b.dmg += db;
-    a.ex = b.ex = true;
-  }
-  if (e.fx === "hurtb") {
-    const d = Math.max(3, Math.round((hp_amount(b, 0.12 + 0.015 * atk(a)) + rnd(10)) * vend_mult(a, b)));
-    b.hp -= d;
-    a.dmg += d;
-    a.ex = b.ex = true;
+  /* Fighting events run through the combat engine, and its log tells the story: a short fight, an ambush
+     that tries to slip away afterwards, or a deadly ambush. */
+  if (e.fx === "hurtboth" || e.fx === "hurtb" || e.fx === "killb") {
+    const o = e.fx === "hurtboth" ? { scuffle: true } : e.fx === "hurtb" ? { hitrun: true } : { deadly: true, surprise: true };
+    L.push({ kind: "fight", ...resolve_fight(a, b, null, null, o) });
+    return;
   }
   if (e.fx === "steal") {
     const inv = ITEMS.filter((k) => b[k] > 0);
@@ -173,13 +165,8 @@ function run_duo(e, a, b, L) {
     }
   }
 
-  L.push([fill(e.t, a, b), ["hurtboth", "hurtb", "killb"].includes(e.fx) ? "h" : "", e.ic]);
+  L.push([fill(e.t, a, b), "", e.ic]);
   if (e.fx.startsWith("st:")) add_status(b, e.fx.slice(3), L);
-
-  if (e.fx === "killb") {
-    die(b, a);
-    L[L.length - 1][1] = "k";
-  }
   settle(L, a, b);
 }
 
@@ -600,7 +587,7 @@ function settle_vendettas(t, by) {
       XL.push([`${N(o)} avenges ${N(T[v.f])} by killing ${N(t)}.`, "a", "🕯️"]);
       if (!o.vd.length) o.fx = o.fx.filter((s) => s.id !== "grief");
     } else {
-      XL.push([`${N(t)} is dead, and ${N(o)} loses the one they wanted revenge on.`, "h", "🥀"]);
+      XL.push([`${N(t)} dies before ${N(o)} can avenge ${T[v.f].n}.`, "h", ["☠️", "🥀"]]);
     }
   });
 }

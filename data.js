@@ -17,27 +17,28 @@ const WPN = [...WPN_STANDARD, ...WPN_CRAFTED];
 /* ---------- weapons ----------
    dmg: damage range on the HP scale. acc: accuracy bonus. crit: crit chance (0-1). cx: crit multiplier.
    init: acts earlier when higher. tags: finesse | reach | heavy | ranged. crafted: can break. */
-const UNARMED = { tags: [], dmg: [4, 10], acc: 0, crit: 0.05, cx: 2, init: 6 };
+const UNARMED = { tags: [], dmg: [5, 12], acc: 0, crit: 0.05, cx: 2, init: 6 };
 
 const WEAPONS = {
-  "Dagger": { tags: ["finesse"], dmg: [9, 17], acc: 2, crit: 0.12, cx: 2, init: 8 },
-  "Short Sword": { tags: ["finesse"], dmg: [11, 19], acc: 1, crit: 0.08, cx: 2, init: 6 },
+  "Dagger": { tags: ["finesse"], dmg: [10, 18], acc: 2, crit: 0.12, cx: 2, init: 8 },
+  "Short Sword": { tags: ["finesse"], dmg: [11, 20], acc: 1, crit: 0.08, cx: 2, init: 6 },
   "Rapier": { tags: ["finesse"], dmg: [11, 19], acc: 2, crit: 0.12, cx: 2, init: 7 },
-  "Katana": { tags: ["finesse"], dmg: [14, 24], acc: 1, crit: 0.1, cx: 2.5, init: 6 },
+  "Katana": { tags: ["finesse"], dmg: [13, 21], acc: 1, crit: 0.1, cx: 2.25, init: 5 },
   "Long Sword": { tags: [], dmg: [13, 23], acc: 0, crit: 0.06, cx: 2, init: 5 },
-  "Metal Bat": { tags: [], dmg: [12, 20], acc: 0, crit: 0.06, cx: 2, init: 4 },
-  "Weapon gloves": { tags: [], dmg: [7, 13], acc: 1, crit: 0.08, cx: 2, init: 5 },
+  "Metal Bat": { tags: [], dmg: [12, 21], acc: 0, crit: 0.06, cx: 2, init: 4 },
+  "Weapon gloves": { tags: [], dmg: [10, 18], acc: 2, crit: 0.1, cx: 2, init: 7 },
   "Spear": { tags: ["reach"], dmg: [12, 20], acc: 1, crit: 0.06, cx: 2, init: 5 },
   "Glaive": { tags: ["reach", "heavy"], dmg: [15, 25], acc: -1, crit: 0.07, cx: 2, init: 4 },
-  "Halberd": { tags: ["reach", "heavy"], dmg: [16, 28], acc: -1, crit: 0.07, cx: 2, init: 3 },
-  "Battle Axe": { tags: ["heavy"], dmg: [17, 31], acc: -2, crit: 0.08, cx: 2.5, init: 3 },
-  "Zweihander": { tags: ["heavy"], dmg: [18, 32], acc: -2, crit: 0.07, cx: 2, init: 2 },
+  "Halberd": { tags: ["reach", "heavy"], dmg: [15, 26], acc: -1, crit: 0.07, cx: 2, init: 3 },
+  "Battle Axe": { tags: ["heavy"], dmg: [16, 28], acc: -2, crit: 0.08, cx: 2.25, init: 3 },
+  "Zweihander": { tags: ["heavy"], dmg: [17, 29], acc: -2, crit: 0.07, cx: 2, init: 2 },
   "Bow": { tags: ["ranged"], dmg: [11, 19], acc: 0, crit: 0.08, cx: 2, init: 5 },
-  "Crossbow": { tags: ["ranged"], dmg: [15, 25], acc: 1, crit: 0.06, cx: 2, init: 6, reload: true },
-  "Crude Bow": { tags: ["ranged"], dmg: [8, 14], acc: -2, crit: 0.04, cx: 1.5, init: 4, crafted: true },
-  "Wooden Spear": { tags: ["reach"], dmg: [9, 15], acc: 0, crit: 0.04, cx: 1.5, init: 4, crafted: true },
-  "Wooden Club": { tags: [], dmg: [8, 14], acc: -1, crit: 0.04, cx: 1.5, init: 3, crafted: true },
-  "Stone Axe": { tags: ["heavy"], dmg: [11, 19], acc: -2, crit: 0.05, cx: 1.5, init: 2, crafted: true },
+  /* Fires every other exchange, so each shot hits harder to make up for it. */
+  "Crossbow": { tags: ["ranged"], dmg: [20, 32], acc: 2, crit: 0.06, cx: 2, init: 6, reload: true },
+  "Crude Bow": { tags: ["ranged"], dmg: [10, 17], acc: -2, crit: 0.04, cx: 1.5, init: 4, crafted: true },
+  "Wooden Spear": { tags: ["reach"], dmg: [11, 18], acc: 0, crit: 0.04, cx: 1.5, init: 4, crafted: true },
+  "Wooden Club": { tags: [], dmg: [10, 17], acc: -1, crit: 0.04, cx: 1.5, init: 3, crafted: true },
+  "Stone Axe": { tags: ["heavy"], dmg: [13, 22], acc: -2, crit: 0.05, cx: 1.5, init: 2, crafted: true },
 };
 
 
@@ -74,14 +75,16 @@ const BLEED_FRAC = 0.35,
    outnumbered. Yield: the clearly losing side begs for mercy. Fights to the death have no way out. */
 const STANDDOWN_HP = 0.5,
   STANDDOWN_GAP = 0.15,
-  STANDDOWN_P = 0.3;
-const FLEE_HP = 0.4,
+  STANDDOWN_P = 0.2;
+const FLEE_HP = 0.45,
   FLEE_OUTNUM_HP = 0.6;
 const YIELD_HP = 0.35,
-  YIELD_GAP = 0.25;
+  YIELD_GAP = 0.28;
 /* A betrayer's opening blow: bonus accuracy and a multiplier on crit chance. */
 const AMBUSH_ACC = 2,
-  AMBUSH_CRIT = 2;
+  AMBUSH_CRIT = 2,
+  AMBUSH_ESCAPE = 0.15; /* a hit-and-run ambusher picked the moment and the way out */
+const SCUFFLE_CAP = 3; /* a brief scrap between two people: a few exchanges, then they part */
 /* Helpers are not the main target, so they run more readily and get away more often. Each ally
    that has fallen or left shakes everyone's nerve. A yield is harder to honour with the yielder's
    friends still fighting. */
@@ -223,9 +226,9 @@ const SFX = [
 
 const DFX = [
   ["none", "Nothing"],
-  ["hurtboth", "Hurt both"],
-  ["hurtb", "Hurt second"],
-  ["killb", "Kill second"],
+  ["hurtboth", "Short fight (text is generated)"],
+  ["hurtb", "Ambush and run (text is generated)"],
+  ["killb", "Deadly ambush (text is generated)"],
   ["steal", "Steal supplies"],
 ];
 
@@ -409,7 +412,7 @@ const DEF_TR = [
   { id: "charm", n: "Charming", ic: "😊", kind: "trait", ...T0, ally: 15 },
   { id: "hot", n: "Hothead", ic: "🤬", kind: "trait", ...T0, atk: 1, wit: -1, betray: 5 },
   { id: "medic", n: "Medic", ic: "🩺", kind: "job", ...T0, heal: 35, wit: 1 },
-  { id: "soldier", n: "Soldier", ic: "🪖", kind: "job", ...T0, atk: 2, coord: 10 },
+  { id: "soldier", n: "Soldier", ic: "🎖️", kind: "job", ...T0, atk: 2, coord: 10 },
   { id: "scout", n: "Scout", ic: "🧭", kind: "job", ...T0, spd: 1, wit: 1 },
   { id: "leader", n: "Leader", ic: "👑", kind: "job", ...T0, coord: 15, ally: 10 },
 ];
