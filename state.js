@@ -65,11 +65,44 @@ const trait_total = (t, k) =>
 
 const status_total = (t, k) => t.fx.reduce((n, s) => n + ((SD(s.id) || {})[k] || 0), 0);
 
-const atk = (t) => Math.max(0, t.atk + trait_total(t, "atk") + status_total(t, "atk"));
+/* Combat stats on a 1-10 scale: 5 + ability modifier + trait and status modifiers. */
+const derived = (t, raw, k) =>
+  Math.max(1, Math.min(10, 5 + ability_mod(raw) + trait_total(t, k) + status_total(t, k)));
 
-const spd = (t) => Math.max(0, t.spd + trait_total(t, "spd") + status_total(t, "spd"));
+const atk = (t) => derived(t, t.str, "atk");
+const spd = (t) => derived(t, t.dex, "spd");
+const wit = (t) => derived(t, t.wis, "wit");
+const int = (t) => derived(t, t.int, "int");
 
-const wit = (t) => Math.max(0, t.wit + trait_total(t, "wit") + status_total(t, "wit"));
+/* ---------- combat helpers (pure: no DOM; initiative is the only one that rolls) ---------- */
+const weapon_stats = (name) => (Object.prototype.hasOwnProperty.call(WEAPONS, name) ? WEAPONS[name] : UNARMED);
+
+const has_tag = (w, tag) => w.tags.includes(tag);
+
+/* Average damage with crits, plus accuracy. Used to decide whether a looted weapon is an upgrade. */
+const weapon_rating = (name) => {
+  const w = weapon_stats(name);
+  return ((w.dmg[0] + w.dmg[1]) / 2) * (1 + w.crit * (w.cx - 1)) + 2 * w.acc;
+};
+
+/* Base accuracy: speed, weapon, heavy weapons without the strength, thirst. Per-fight modifiers
+   (reach, ranged, surprise, outnumbered) are added by the fight itself. */
+const accuracy = (t) => {
+  const w = weapon_stats(t.w);
+  return spd(t) + w.acc - (has_tag(w, "heavy") && t.str < HEAVY_STR ? HEAVY_PEN : 0) - (t.water <= 0 ? THIRST_PEN : 0);
+};
+
+const evade = (t) => EVADE_SPD * spd(t) + EVADE_WIT * wit(t) + EVADE_INT * int(t);
+
+const hit_chance = (acc, ev) => Math.max(HIT_MIN, Math.min(HIT_MAX, HIT_BASE + HIT_STEP * (acc - ev)));
+
+const crit_chance = (t) => Math.min(CRIT_MAX, weapon_stats(t.w).crit + CRIT_INT * int(t) + CRIT_WIT * wit(t));
+
+/* Each hit taken is reduced by half the CON modifier (never below 0). */
+const damage_reduction = (t) => Math.max(0, Math.floor(ability_mod(t.con) / 2));
+
+/* Roll initiative: weapon speed plus DEX, with a little noise. */
+const initiative = (t) => weapon_stats(t.w).init + spd(t) + rnd(4);
 
 /* Damage multiplier for vendetta: a griever hits their lover's killer harder, and takes more from them. */
 const vend_mult = (from, to) =>

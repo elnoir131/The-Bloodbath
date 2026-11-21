@@ -8,11 +8,72 @@ const LAST = ["Ketchum", "Fazbear", "Jackson", "FGO", "Lawliet", "Mistress",
     "Kim", "Natsuki", "Sato", "Cruz", "Uchiha", "Frost", "Bell", "Uzumaki", "Doyle", "Park"];
 
 const WPN_STANDARD = ["Dagger", "Short Sword", "Long Sword", "Katana", "Spear", "Battle Axe", 
-    "Bow", "Crossbow", "Halberd", "Metal Bat", "Rapier", "Sweihander", "Glaive", "Weapon gloves"];
+    "Bow", "Crossbow", "Halberd", "Metal Bat", "Rapier", "Zweihander", "Glaive", "Weapon gloves"];
 
 const WPN_CRAFTED = ["Crude Bow", "Wooden Spear", "Wooden Club", "Stone Axe"];
 
 const WPN = [...WPN_STANDARD, ...WPN_CRAFTED];
+
+/* ---------- weapons ----------
+   dmg: damage range on the HP scale. acc: accuracy bonus. crit: crit chance (0-1). cx: crit multiplier.
+   init: acts earlier when higher. tags: finesse | reach | heavy | ranged. crafted: can break. */
+const UNARMED = { tags: [], dmg: [4, 10], acc: 0, crit: 0.05, cx: 2, init: 6 };
+
+const WEAPONS = {
+  "Dagger": { tags: ["finesse"], dmg: [9, 17], acc: 2, crit: 0.12, cx: 2, init: 8 },
+  "Short Sword": { tags: ["finesse"], dmg: [11, 19], acc: 1, crit: 0.08, cx: 2, init: 6 },
+  "Rapier": { tags: ["finesse"], dmg: [11, 19], acc: 2, crit: 0.12, cx: 2, init: 7 },
+  "Katana": { tags: ["finesse"], dmg: [14, 24], acc: 1, crit: 0.1, cx: 2.5, init: 6 },
+  "Long Sword": { tags: [], dmg: [13, 23], acc: 0, crit: 0.06, cx: 2, init: 5 },
+  "Metal Bat": { tags: [], dmg: [12, 20], acc: 0, crit: 0.06, cx: 2, init: 4 },
+  "Weapon gloves": { tags: [], dmg: [7, 13], acc: 1, crit: 0.08, cx: 2, init: 5 },
+  "Spear": { tags: ["reach"], dmg: [12, 20], acc: 1, crit: 0.06, cx: 2, init: 5 },
+  "Glaive": { tags: ["reach", "heavy"], dmg: [15, 25], acc: -1, crit: 0.07, cx: 2, init: 4 },
+  "Halberd": { tags: ["reach", "heavy"], dmg: [16, 28], acc: -1, crit: 0.07, cx: 2, init: 3 },
+  "Battle Axe": { tags: ["heavy"], dmg: [17, 31], acc: -2, crit: 0.08, cx: 2.5, init: 3 },
+  "Zweihander": { tags: ["heavy"], dmg: [18, 32], acc: -2, crit: 0.07, cx: 2, init: 2 },
+  "Bow": { tags: ["ranged"], dmg: [11, 19], acc: 0, crit: 0.08, cx: 2, init: 5 },
+  "Crossbow": { tags: ["ranged"], dmg: [15, 25], acc: 1, crit: 0.06, cx: 2, init: 6, reload: true },
+  "Crude Bow": { tags: ["ranged"], dmg: [8, 14], acc: -2, crit: 0.04, cx: 1.5, init: 4, crafted: true },
+  "Wooden Spear": { tags: ["reach"], dmg: [9, 15], acc: 0, crit: 0.04, cx: 1.5, init: 4, crafted: true },
+  "Wooden Club": { tags: [], dmg: [8, 14], acc: -1, crit: 0.04, cx: 1.5, init: 3, crafted: true },
+  "Stone Axe": { tags: ["heavy"], dmg: [11, 19], acc: -2, crit: 0.05, cx: 1.5, init: 2, crafted: true },
+};
+
+/* Combat tuning. Everything here is a starting value to be adjusted with sim_to_end(). */
+const HIT_BASE = 0.6,
+  HIT_STEP = 0.04,
+  HIT_MIN = 0.15,
+  HIT_MAX = 0.95;
+const EVADE_SPD = 0.5,
+  EVADE_WIT = 0.35,
+  EVADE_INT = 0.15;
+const CRIT_INT = 0.006,
+  CRIT_WIT = 0.003,
+  CRIT_MAX = 0.4;
+const HEAVY_STR = 12,
+  HEAVY_PEN = 2,
+  THIRST_PEN = 2,
+  SWARM_PEN = 1,
+  CRAFT_BREAK = 0.08;
+const FIGHT_CAP = 10,
+  DEATH_CAP = 15,
+  LEAD_FOCUS = 0.7;
+const BLEED_FRAC = 0.35,
+  INFECT_FRAC = 0.4;
+
+/* Ways out of a fight (fractions are of max HP). Stand-down: both hurt and level. Retreat: hurt, or
+   outnumbered. Yield: the clearly losing side begs for mercy. Fights to the death have no way out. */
+const STANDDOWN_HP = 0.5,
+  STANDDOWN_GAP = 0.15,
+  STANDDOWN_P = 0.3;
+const FLEE_HP = 0.4,
+  FLEE_OUTNUM_HP = 0.6;
+const YIELD_HP = 0.35,
+  YIELD_GAP = 0.25;
+const TRIBUTE_P = 0.6,
+  TRIBUTE_WEAPON_P = 0.5,
+  SPARE_GRUDGE = 0.2;
 
 /* ---------- stats and inventory ---------- */
 const STATS = [
@@ -288,6 +349,7 @@ const TF = [
   ["atk", -5, 5],
   ["spd", -5, 5],
   ["wit", -5, 5],
+  ["int", -5, 5],
   ["coord", -50, 100],
   ["betray", -50, 100],
   ["ally", -50, 100],
@@ -299,6 +361,7 @@ const SF = [
   ["atk", -5, 5],
   ["spd", -5, 5],
   ["wit", -5, 5],
+  ["int", -5, 5],
   ["dur", 1, 10],
 ];
 
@@ -306,6 +369,7 @@ const TL = {
   atk: "Attack",
   spd: "Speed",
   wit: "Wits",
+  int: "Intellect",
   coord: "Joint-attack chance (%)",
   betray: "Betrayal chance (% points)",
   ally: "Alliance chance (%)",
@@ -314,7 +378,7 @@ const TL = {
   dur: "Rounds it lasts",
 };
 
-const T0 = { atk: 0, spd: 0, wit: 0, coord: 0, betray: 0, ally: 0, heal: 0 };
+const T0 = { atk: 0, spd: 0, wit: 0, int: 0, coord: 0, betray: 0, ally: 0, heal: 0 };
 
 const DEF_TR = [
   { id: "coord", n: "Coordinated", ic: "🤝", kind: "trait", ...T0, coord: 30, ally: 5 },
@@ -332,14 +396,14 @@ const DEF_TR = [
 ];
 
 const DEF_ST = [
-  { id: "bleed", n: "Bleeding", ic: "🩸", dmg: 4, atk: 0, spd: 0, wit: 0, dur: 3 },
-  { id: "poison", n: "Poisoned", ic: "☠️", dmg: 6, atk: 0, spd: -1, wit: 0, dur: 3 },
-  { id: "burn", n: "Burning", ic: "🔥", dmg: 8, atk: 0, spd: 0, wit: 0, dur: 2 },
-  { id: "stun", n: "Stunned", ic: "😵", dmg: 0, atk: -3, spd: -3, wit: 0, dur: 2 },
-  { id: "inspire", n: "Inspired", ic: "✨", dmg: 0, atk: 2, spd: 0, wit: 1, dur: 3 },
-  { id: "fear", n: "Frightened", ic: "😱", dmg: 0, atk: -2, spd: 0, wit: 0, dur: 2 },
-  { id: "regen", n: "Regenerating", ic: "💚", dmg: -5, atk: 0, spd: 0, wit: 0, dur: 3 },
-  { id: "grief", n: "Grieving", ic: "💔", dmg: 0, atk: 2, spd: -2, wit: 0, dur: 3 },
+  { id: "bleed", n: "Bleeding", ic: "🩸", dmg: 4, atk: 0, spd: 0, wit: 0, int: 0, dur: 3 },
+  { id: "poison", n: "Poisoned", ic: "☠️", dmg: 6, atk: 0, spd: -1, wit: 0, int: 0, dur: 3 },
+  { id: "burn", n: "Burning", ic: "🔥", dmg: 8, atk: 0, spd: 0, wit: 0, int: 0, dur: 2 },
+  { id: "stun", n: "Stunned", ic: "😵", dmg: 0, atk: -3, spd: -3, wit: 0, int: 0, dur: 2 },
+  { id: "inspire", n: "Inspired", ic: "✨", dmg: 0, atk: 2, spd: 0, wit: 1, int: 0, dur: 3 },
+  { id: "fear", n: "Frightened", ic: "😱", dmg: 0, atk: -2, spd: 0, wit: 0, int: 0, dur: 2 },
+  { id: "regen", n: "Regenerating", ic: "💚", dmg: -5, atk: 0, spd: 0, wit: 0, int: 0, dur: 3 },
+  { id: "grief", n: "Grieving", ic: "💔", dmg: 0, atk: 2, spd: -2, wit: 0, int: 0, dur: 3 },
 ];
 
 const RN = { lover: "💞 Lovers", rival: "⚡ Rivals", enemy: "💢 Enemies" };

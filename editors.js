@@ -211,6 +211,7 @@ $("#addX").onclick = add_new_entry("x", () => ({
   atk: 0,
   spd: 0,
   wit: 0,
+  int: 0,
   dur: 2,
 }));
 

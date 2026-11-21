@@ -25,9 +25,6 @@ function start(sd) {
     int: p.int,
     wis: p.wis,
     cha: p.cha,
-    atk: Math.max(1, Math.min(10, 5 + ability_mod(p.str))),
-    spd: Math.max(1, Math.min(10, 5 + ability_mod(p.dex))),
-    wit: Math.max(1, Math.min(10, 5 + ability_mod(p.wis))),
     traits: [...p.traits],
     job: p.job,
     fac: p.fac.trim(),
@@ -295,7 +292,7 @@ function render() {
 
   const detail = (t) =>
     t.alive
-      ? `<span class="meta dt">${abil(t)}</span><span class="meta dt">⚔${atk(t)} 💨${spd(t)} 🧠${wit(t)} · ❤${Math.max(0, Math.round(t.hp))}/${t.mhp} · 💧${+t.water.toFixed(1)} 🍖${Math.round(t.food)}${t.inf ? " · 🦠 infected" : ""}${t.vd && t.vd.length ? " · 🗡 vendetta: " + t.vd.map((v) => esc(T[v.k].n)).join(", ") : ""}${t.left ? " · left a team" : ""}</span><span class="meta dt">🍶${t.bottle} 🥫${t.ration} 🩹${t.kit}</span>`
+      ? `<span class="meta dt">${abil(t)}</span><span class="meta dt">⚔${atk(t)} 💨${spd(t)} 🧠${wit(t)} 📖${int(t)} · ❤${Math.max(0, Math.round(t.hp))}/${t.mhp} · 💧${+t.water.toFixed(1)} 🍖${Math.round(t.food)}${t.inf ? " · 🦠 infected" : ""}${t.vd && t.vd.length ? " · 🗡 vendetta: " + t.vd.map((v) => esc(T[v.k].n)).join(", ") : ""}${t.left ? " · left a team" : ""}</span><span class="meta dt">🍶${t.bottle} 🥫${t.ration} 🩹${t.kit}</span>`
       : `<span class="meta dt">Out in round ${t.round}: ${esc(t.why)}</span>`;
 
   const row = (t) => {

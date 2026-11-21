@@ -5,7 +5,7 @@ function is_harmful(event) {
   if (["hurt", "die", "hurtb", "hurtboth", "killb"].includes(fx)) return true;
   if (fx.startsWith("st:")) {
     const s = SD(fx.slice(3));
-    return !!s && (s.dmg > 0 || s.atk + s.spd + s.wit < 0);
+    return !!s && (s.dmg > 0 || s.atk + s.spd + s.wit + (s.int || 0) < 0);
   }
   return false;
 }
@@ -79,88 +79,10 @@ function infect(t, L) {
   L.push([`${N(t)}'s wound turns bad and a fever sets in.`, "h", "🦠"]);
 }
 
-/* Ganging up: each helper adds a flat numbers bonus plus most of their own attack. */
-const gang_bonus = (c) => atk(c) * 0.8 + 3;
-
-function fight(a, b, L, ca, cb) {
-  COMBAT = true;
-  talk_entry(a, b).fought = true;
-  const p = (t) =>
-    atk(t) +
-    (t.w ? 3 : 0) +
-    rnd(7) +
-    (4 * t.hp) / t.mhp +
-    ability_mod(t.int) * 1.0 -
-    (t.water <= 0 ? 3 : 0) +
-    (t === a && ca ? gang_bonus(ca) : 0) +
-    (t === b && cb ? gang_bonus(cb) : 0);
-  let w = a,
-    l = b;
-  if (p(b) > p(a)) {
-    w = b;
-    l = a;
-  }
-  a.ex = b.ex = true;
-
-  if (chance(0.15)) {
-    L.push([`${N(a)} and ${N(b)} trade blows, then both back off, bloodied.`, "h"]);
-    const da = hp_amount(a, 0.15),
-      db = hp_amount(b, 0.15);
-    a.hp -= da;
-    b.hp -= db;
-    a.dmg += da;
-    b.dmg += db;
-    settle(L, a, b);
-    return;
-  }
-
-  const helper = w === a ? ca : cb;
-  if (
-    chance(
-      Math.max(
-        0.03,
-        Math.min(
-          0.5,
-          0.1 + 0.03 * (spd(l) - spd(w)) + 0.1 * (1 - l.hp / l.mhp) - (helper ? 0.1 : 0),
-        ),
-      ),
-    )
-  ) {
-    L.push([`${N(l)} breaks away from ${N(w)} and escapes.`, "h", "💨"]);
-    return;
-  }
-
-  const roll = Math.round(
-      12 + 2.5 * atk(w) + (w.w ? 8 : 0) + rnd(16) + (helper ? atk(helper) + (helper.w ? 4 : 0) : 0),
-    ),
-    taken = Math.max(5, Math.round((roll - 2 * ability_mod(l.con)) * vend_mult(w, l)));
-  w.dmg += Math.min(taken, Math.max(0, l.hp));
-  l.hp -= taken;
-  const how = w.w ? `with a ${w.w}` : "with bare hands";
-
-  if (l.hp <= 0) {
-    die(l, w);
-    L.push([`${N(w)} catches ${N(l)} and ends the fight ${how}.`, "k"]);
-    if (!w.w && l.w) {
-      w.w = l.w;
-      L.push([`${N(w)} takes the ${l.w} from the body.`, "a"]);
-    }
-    const got = ITEMS.reduce((n, k) => n + l[k], 0);
-    ITEMS.forEach((k) => {
-      w[k] += l[k];
-      l[k] = 0;
-    });
-    if (got)
-      L.push([
-        `${N(w)} searches the body and takes ${got} suppl${got > 1 ? "ies" : "y"}.`,
-        "a",
-        "🎒",
-      ]);
-  } else {
-    L.push([`${N(w)} wounds ${N(l)} ${how}, and ${N(l)} limps away.`, "h"]);
-    if (taken >= 0.4 * l.mhp && !l.inf && chance(0.3 - ability_mod(l.con) * 0.03)) infect(l, L);
-    if (taken >= 0.35 * l.mhp && l.alive) add_status(l, "bleed", L);
-  }
+/* Until fights get their own expandable log item, flatten one to its summary plus the key beats. */
+function fight_to_lines(f, L) {
+  L.push([f.summary, f.cls, f.icon]);
+  f.exchanges.forEach((x) => x.lines.forEach((l) => l[3] && L.push(l.slice(0, 3))));
 }
 
 const fill = (x, a, b, w) =>
@@ -369,7 +291,7 @@ function gamemakers(L) {
       far = al.filter((x) => x !== a && x.g !== a.g),
       b = pick(far.length ? far : al.filter((x) => x !== a));
     L.push([`The Gamemakers grow impatient and herd ${N(a)} and ${N(b)} into the same clearing.`, "c", "🚨"]);
-    fight_joint(a, b, L);
+    fight_joint(a, b, L, true);
     return true;
   }
   const ds = DIS.filter(
@@ -660,7 +582,7 @@ function add_status(t, id, L) {
   const d = SD(id);
   if (!d || !t.alive) return;
   /* Only harmful statuses can be resisted. Buffs (inspired, regenerating...) always land. */
-  const harmful = d.dmg > 0 || d.atk < 0 || d.spd < 0 || d.wit < 0;
+  const harmful = d.dmg > 0 || d.atk < 0 || d.spd < 0 || d.wit < 0 || d.int < 0;
   if (harmful && chance(Math.max(0, ability_mod(t.con) * 0.05))) {
     L.push([`${N(t)} shrugs off the ${d.n.toLowerCase()} effect.`, "a", "🛡️"]);
     return;
@@ -742,7 +664,7 @@ function assist(x, y) {
   return chance(Math.min(0.85, Math.max(0, p))) ? POOL.splice(i, 1)[0] : null;
 }
 
-function fight_joint(a, b, L) {
+function fight_joint(a, b, L, deadly) {
   const ca = assist(a, b),
     cb = ca ? null : assist(b, a);
   /* A helper who is only there because they hate the target gets their own line. */
@@ -766,7 +688,7 @@ function fight_joint(a, b, L) {
     ]);
   if (ca) HELPERS.add(ca.id);
   if (cb) HELPERS.add(cb.id);
-  fight(a, b, L, ca, cb);
+  fight_to_lines(resolve_fight(a, b, ca, cb, { deadly }), L);
 }
 
 /* Index of the partner a leans toward: weaker and hurt ones early, the biggest threat late. */
