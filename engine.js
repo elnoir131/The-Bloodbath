@@ -335,9 +335,10 @@ function upkeep(t, L) {
     t.dz = false;
   }
 
-  /* Grief has no timer: each round there is a chance the griever comes to terms with the loss. */
+  /* Grief has no timer, but it always lasts at least GRIEF_MIN rounds. After that each round there is a
+     chance the griever comes to terms with the loss. */
   const gi = t.fx.findIndex((s) => s.id === "grief");
-  if (gi >= 0 && chance(Math.min(0.5, Math.max(0.05, GRIEF_BASE + ability_mod(t.wis) * GRIEF_WIS)))) {
+  if (gi >= 0 && R - (t.fx[gi].since || 0) >= GRIEF_MIN && chance(Math.min(0.5, Math.max(0.05, GRIEF_BASE + ability_mod(t.wis) * GRIEF_WIS)))) {
     t.fx.splice(gi, 1);
     t.vd = [];
     L.push([`${N(t)} slowly comes to terms with the loss.`, "a", "🕊️"]);
@@ -610,7 +611,7 @@ function grief_of(t, by) {
     const o = T[r.a === t.id ? r.b : r.a];
     if (!o || !o.alive) return;
     const d = SD("grief");
-    if (d && !o.fx.some((s) => s.id === "grief")) o.fx.push({ id: "grief", left: d.dur });
+    if (d && !o.fx.some((s) => s.id === "grief")) o.fx.push({ id: "grief", left: d.dur, since: R });
     if (by && by !== o && !o.vd.some((v) => v.k === by.id)) o.vd.push({ k: by.id, f: t.id });
     if (
       by &&

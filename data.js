@@ -40,9 +40,10 @@ const WEAPONS = {
   "Stone Axe": { tags: ["heavy"], dmg: [11, 19], acc: -2, crit: 0.05, cx: 1.5, init: 2, crafted: true },
 };
 
+
 /* Combat tuning. Everything here is a starting value to be adjusted with sim_to_end(). */
 const HIT_BASE = 0.6,
-  HIT_STEP = 0.04,
+  HIT_STEP = 0.03,
   HIT_MIN = 0.15,
   HIT_MAX = 0.95;
 const EVADE_SPD = 0.5,
@@ -51,6 +52,13 @@ const EVADE_SPD = 0.5,
 const CRIT_INT = 0.006,
   CRIT_WIT = 0.003,
   CRIT_MAX = 0.4;
+/* Strength shifts the damage range instead of adding a flat bonus: above average it raises the
+   floor (at most DMG_SHIFT of the range, so a 50-120 weapon never rolls below about 80), below average
+   it lowers the ceiling, and each point above average adds CRIT_STR to the crit multiplier. */
+const DMG_SHIFT = 0.43,
+  CRIT_STR = 0.05;
+/* How loot is judged: expected damage per exchange against a typical (evade 5) opponent. */
+const RATING_EVADE = 5;
 const HEAVY_STR = 12,
   HEAVY_PEN = 2,
   THIRST_PEN = 2,
@@ -74,6 +82,13 @@ const YIELD_HP = 0.35,
 /* A betrayer's opening blow: bonus accuracy and a multiplier on crit chance. */
 const AMBUSH_ACC = 2,
   AMBUSH_CRIT = 2;
+/* Helpers are not the main target, so they run more readily and get away more often. Each ally
+   that has fallen or left shakes everyone's nerve. A yield is harder to honour with the yielder's
+   friends still fighting. */
+const HELPER_FLEE = 0.15,
+  HELPER_ESCAPE = 0.2,
+  MORALE_LOSS = 0.15,
+  YIELD_PRESSURE = 0.1;
 const TRIBUTE_P = 0.6,
   TRIBUTE_WEAPON_P = 0.5,
   SPARE_GRUDGE = 0.2;
@@ -335,7 +350,8 @@ const VEND_DEALT = 1.5,
 /* Grief has no timer. It ends when the griever kills the killer, or each round by chance
    (base + WIS modifier * step, kept between 5% and 50%). */
 const GRIEF_BASE = 0.15,
-  GRIEF_WIS = 0.03;
+  GRIEF_WIS = 0.03,
+  GRIEF_MIN = 2; /* rounds before grief can end: the griever gets at least one full round */
 
 /* Partner choice: this share of the time an initiator leans on threat when picking a partner.
    Early on they go for weaker or hurt targets; late (endgame, or this fraction of the roster left)

@@ -79,10 +79,27 @@ const weapon_stats = (name) => (Object.prototype.hasOwnProperty.call(WEAPONS, na
 
 const has_tag = (w, tag) => w.tags.includes(tag);
 
-/* Average damage with crits, plus accuracy. Used to decide whether a looted weapon is an upgrade. */
-const weapon_rating = (name) => {
-  const w = weapon_stats(name);
-  return ((w.dmg[0] + w.dmg[1]) / 2) * (1 + w.crit * (w.cx - 1)) + 2 * w.acc;
+/* The range a wielder really rolls with a weapon, and their crit multiplier. Attack (STR, traits,
+   statuses) moves it: strong fighters keep the top of it and hit consistently, weak ones lose the top. */
+const damage_range = (t, w) => {
+  const span = w.dmg[1] - w.dmg[0],
+    s = (atk(t) - 5) / 5;
+  return {
+    lo: w.dmg[0] + (s > 0 ? s * DMG_SHIFT * span : 0),
+    hi: w.dmg[1] - (s < 0 ? -s * DMG_SHIFT * span : 0),
+    cx: w.cx + CRIT_STR * (atk(t) - 5),
+  };
+};
+
+/* How good a weapon is in this wielder's hands: expected damage per exchange against a typical
+   opponent, counting hit chance, their damage range, crits, a heavy weapon they cannot lift and a
+   slow reload. Used to decide whether a looted weapon is an upgrade. */
+const weapon_rating = (name, t) => {
+  const w = weapon_stats(name),
+    r = damage_range(t, w),
+    acc = spd(t) + w.acc - (has_tag(w, "heavy") && t.str < HEAVY_STR ? HEAVY_PEN : 0),
+    crit = Math.min(CRIT_MAX, w.crit + CRIT_INT * int(t) + CRIT_WIT * wit(t));
+  return hit_chance(acc, RATING_EVADE) * ((r.lo + r.hi) / 2) * (1 + crit * (r.cx - 1)) * (w.reload ? 0.5 : 1);
 };
 
 /* Base accuracy: speed, weapon, heavy weapons without the strength, thirst. Per-fight modifiers
