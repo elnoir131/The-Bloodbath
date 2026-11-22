@@ -170,10 +170,31 @@ function show_page(live) {
 /* ---------- fights: one collapsible log item each ---------- */
 const FIGHT_LABEL = { ambush: "Ambush", volley: "Opening volley", exit: "Breaking off" };
 
+/* Portrait order follows the summary: the side whose fighter is named first goes on the left, and each
+   side lists its fighters in the order the summary names them (anyone unnamed comes last). */
+function fight_sides(f) {
+  const seen = ids(f.summary),
+    rank = (id) => {
+      const k = seen.indexOf(id);
+      return k < 0 ? 99 : k;
+    },
+    ord = f.sides.map((s) => {
+      const ix = s.ids.map((_, j) => j).sort((p, q) => rank(s.ids[p]) - rank(s.ids[q]) || p - q);
+      return {
+        ids: ix.map((j) => s.ids[j]),
+        hpBefore: ix.map((j) => s.hpBefore[j]),
+        hpAfter: ix.map((j) => s.hpAfter[j]),
+        first: Math.min(...s.ids.map(rank)),
+      };
+    });
+  return ord[1].first < ord[0].first ? [ord[1], ord[0]] : ord;
+}
+
 function fight_html(f, key) {
-  const ids = f.sides.flatMap((s) => s.ids),
+  const sd = fight_sides(f),
+    ids = sd.flatMap((s) => s.ids),
     side = (s) => s.ids.map((id) => av(T[id])).join(""),
-    chips = f.sides
+    chips = sd
       .flatMap((s) =>
         s.ids.map((id, j) => {
           const lost = s.hpBefore[j] - s.hpAfter[j],
@@ -198,7 +219,7 @@ function fight_html(f, key) {
       .join("");
   return `<div class="ev fight ${f.cls}" data-key="${esc(key)}">
     <div class="fhead" role="button" tabindex="0" aria-expanded="false">
-      <div class="pics${ids.length > 4 ? " many" : ""}">${side(f.sides[0])}<span class="ic" aria-hidden="true">${esc(f.icon)}</span>${side(f.sides[1])}</div>
+      <div class="pics${ids.length > 4 ? " many" : ""}">${side(sd[0])}<span class="ic" aria-hidden="true">${esc(f.icon)}</span>${side(sd[1])}</div>
       <div class="fline"><div>${fmt(f.summary)}</div><span class="farrow" aria-hidden="true">▸</span></div>
       <div class="fchips">${chips}</div>
     </div>
@@ -464,7 +485,7 @@ const plain = (x) => x.replace(/\u0001(\d+)\u0002/g, (m, k) => T[k].n);
 /* A fight is its summary line with each exchange nested beneath it. */
 function log_md(r) {
   if (r.kind !== "fight") return ["- " + plain(r[0].replace(/<[^>]+>/g, ""))];
-  const hp = r.sides.flatMap((s) =>
+  const hp = fight_sides(r).flatMap((s) =>
       s.ids.map((id, j) => `${T[id].n} ${s.hpAfter[j] <= 0 ? "fell" : "-" + (s.hpBefore[j] - s.hpAfter[j])}`),
     ),
     out = [`- ${plain(r.summary)} _(${hp.join(", ")})_`];

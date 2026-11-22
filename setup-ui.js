@@ -240,7 +240,7 @@ $("#setup").addEventListener("input", save_soon);
 /* ---------- setup: per-contestant faction, job and traits ---------- */
 const describe = (x) =>
   TF.filter(([k]) => x[k])
-    .map(([k]) => `${k} ${signed(x[k])}`)
+    .map(([k]) => `${TLAB[k]} ${signed(x[k])}`)
     .join(", ") || "no modifiers";
 
 const extra = (p, i) => `

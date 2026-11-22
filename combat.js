@@ -21,11 +21,11 @@ function position_mod(att, def, n) {
 }
 
 /* Damage of one landed hit: a roll in the wielder's range (see damage_range), times the crit
-   multiplier, less the target's toughness, times any vendetta. Always at least 1. */
+   multiplier, times any vendetta. Toughness is HP only (CON), not a cut to each hit. Always at least 1. */
 function roll_damage(att, def, crit) {
   const r = damage_range(att, weapon_stats(att.w)),
     base = r.lo + rng() * (r.hi - r.lo);
-  return Math.max(1, Math.round(((crit ? base * r.cx : base) - damage_reduction(def)) * vend_mult(att, def)));
+  return Math.max(1, Math.round((crit ? base * r.cx : base) * vend_mult(att, def)));
 }
 
 /* Lines that must show even when the fight is collapsed carry a 4th element (true). */

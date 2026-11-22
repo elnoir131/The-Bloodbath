@@ -41,15 +41,17 @@ const WEAPONS = {
   "Stone Axe": { tags: ["heavy"], dmg: [13, 22], acc: -2, crit: 0.05, cx: 1.5, init: 2, crafted: true },
 };
 
-
 /* Combat tuning. Everything here is a starting value to be adjusted with sim_to_end(). */
-const HIT_BASE = 0.6,
+const HIT_BASE = 0.75,
   HIT_STEP = 0.03,
   HIT_MIN = 0.15,
   HIT_MAX = 0.95;
+/* Evade is on twice the accuracy scale (HIT_BASE is raised to match), so a point of WIS or INT moves the
+   hit chance as much as DEX does. Two equal average fighters (all derived stats 5, no weapon bonus) meet at
+   60%; higher-skilled pairs hit each other a little less, lower-skilled pairs a little more. */
 const EVADE_SPD = 0.5,
-  EVADE_WIT = 0.35,
-  EVADE_INT = 0.15;
+  EVADE_WIT = 0.9,
+  EVADE_INT = 0.6;
 const CRIT_INT = 0.006,
   CRIT_WIT = 0.003,
   CRIT_MAX = 0.4;
@@ -59,7 +61,7 @@ const CRIT_INT = 0.006,
 const DMG_SHIFT = 0.43,
   CRIT_STR = 0.05;
 /* How loot is judged: expected damage per exchange against a typical (evade 5) opponent. */
-const RATING_EVADE = 5;
+const RATING_EVADE = 10;
 const HEAVY_STR = 12,
   HEAVY_PEN = 2,
   THIRST_PEN = 2,
@@ -98,11 +100,11 @@ const TRIBUTE_P = 0.6,
 
 /* ---------- stats and inventory ---------- */
 const STATS = [
-  ["str", "💪", "Strength: melee power", "STR"],
-  ["dex", "🏃", "Dexterity: speed and escaping", "DEX"],
-  ["con", "🛡️", "Constitution: toughness and disease resistance", "CON"],
-  ["int", "📖", "Intelligence: tactics", "INT"],
-  ["wis", "🧠", "Wisdom: survival instincts", "WIS"],
+  ["str", "💪", "Strength: weapon damage", "STR"],
+  ["dex", "🏃", "Dexterity: accuracy, evasion, initiative and escaping", "DEX"],
+  ["con", "🛡️", "Constitution: max HP and disease resistance", "CON"],
+  ["int", "📖", "Intelligence: crits, evasion and coordination", "INT"],
+  ["wis", "🧠", "Wisdom: evasion, crits, foraging and hazards", "WIS"],
   ["cha", "💬", "Charisma: forming alliances", "CHA"],
   ["water", "💧", "Water: rounds before thirst", "Water"],
   ["food", "🍖", "Food: rounds before hunger", "Food"],
@@ -387,11 +389,25 @@ const SF = [
   ["dur", 1, 10],
 ];
 
-const TL = {
-  atk: "Attack",
+/* Visible label and hover tooltip for every editor field. */
+const TLAB = {
+  atk: "Damage",
   spd: "Speed",
   wit: "Wits",
   int: "Intellect",
+  coord: "Coord %",
+  betray: "Betray %",
+  ally: "Ally %",
+  heal: "Heal %",
+  dmg: "HP loss %",
+  dur: "Rounds",
+};
+
+const TL = {
+  atk: "Damage: shifts the weapon's damage range up (or down) and raises the crit multiplier. Added to the 1-10 score from STR.",
+  spd: "Speed: feeds accuracy, evasion and initiative, and helps escape. Added to the 1-10 score from DEX.",
+  wit: "Wits: feeds evasion and crit chance. Added to the 1-10 score from WIS.",
+  int: "Intellect: feeds crit chance and evasion. Added to the 1-10 score from INT.",
   coord: "Joint-attack chance (%)",
   betray: "Betrayal chance (% points)",
   ally: "Alliance chance (%)",

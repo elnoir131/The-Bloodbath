@@ -45,8 +45,9 @@
         <label>Seed <input type="text" class="sd" id="seed" placeholder="random" maxlength="24" aria-label="Match seed"></label>
       </div>
 
+      <p class="meta">Seed: replays are exact only on the same version and setup. Export the log to keep a match.</p>
       <p class="meta">By default everyone is solo. Add teams, then pick a team for each contestant from their dropdown. Tap a circle to choose a photo: use the image on your clipboard, or browse for a file. The Background image button works the same way. Photos and settings are saved on this device only.</p>
-      <p class="meta" id="statHelp" hidden>Abilities use the tabletop scale (1 to 20, modifier = (score − 10) ÷ 2). 💪 STR is melee power · 🏃 DEX is speed and escaping · 🫀 CON soaks damage and resists infection · 📖 INT helps coordination and tactics · 🧠 WIS finds water, dodges hazards and guards supplies · 💬 CHA forms alliances · ❤ starting health · 💧 water is rounds until thirst · 🍖 food is rounds until hunger · bottles, rations and medkits are used automatically. Traits and jobs add modifiers, factions help coordination.</p>
+      <p class="meta" id="statHelp" hidden>Abilities use the tabletop scale (1 to 20, modifier = (score − 10) ÷ 2). 💪 STR sets weapon damage · 🏃 DEX sets accuracy, evasion, initiative and escape · 🫀 CON sets max HP and resists infection · 📖 INT helps crits, evasion and coordination · 🧠 WIS helps evasion and crits, finds water, dodges hazards and guards supplies · 💬 CHA forms alliances · ❤ starting health · 💧 water is rounds until thirst · 🍖 food is rounds until hunger · bottles, rations and medkits are used automatically. Traits and jobs add modifiers, factions help coordination.</p>
       
       <div id="tlist" class="bar"></div>
       <div id="teams"></div>
@@ -97,13 +98,14 @@
       <details class="evbox">
         <summary><b>Traits and jobs</b></summary>
         <p class="meta">Traits add modifiers to a contestant (up to 3 each); a job is one extra role with the same kind of modifiers. Coord raises joint-attack chance, betray raises betrayal chance, ally raises alliance chance, heal is a Medic-style chance to patch up a groupmate. Contestants in the same faction coordinate better.</p>
+        <p class="meta"><b>Combat fields</b> are added to the 1 to 10 score each ability gives. <b>Damage</b> shifts the weapon's damage range and crit multiplier. <b>Speed</b> feeds accuracy, evasion and initiative. <b>Wits</b> feeds evasion and crit chance. <b>Intellect</b> feeds crit chance and evasion. Hover a field for its tooltip.</p>
         <div id="evT"></div>
         <button class="ghost" id="addT">Add trait</button> <button class="ghost" id="addJ">Add job</button>
       </details>
 
       <details class="evbox">
         <summary><b>Status effects</b></summary>
-        <p class="meta">Statuses last a number of rounds. Use them from the event and disaster effect dropdowns, or let fights cause bleeding. High CON allows a save to resist. Grieving is special: its duration is ignored, because grief ends by revenge or by a per-round recovery chance.</p>
+        <p class="meta">Statuses last a number of rounds. Use them from the event and disaster effect dropdowns, or let fights cause bleeding. Damage, Speed, Wits and Intellect here are added to the same 1 to 10 scores as on traits. HP loss is a percentage of max HP per round (negative heals). High CON allows a save to resist. Grieving is special: its duration is ignored, because grief ends by revenge or by a per-round recovery chance.</p>
         <div id="evX"></div>
         <button class="ghost" id="addX">Add status</button>
       </details>

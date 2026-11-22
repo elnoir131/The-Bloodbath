@@ -115,9 +115,6 @@ const hit_chance = (acc, ev) => Math.max(HIT_MIN, Math.min(HIT_MAX, HIT_BASE + H
 
 const crit_chance = (t) => Math.min(CRIT_MAX, weapon_stats(t.w).crit + CRIT_INT * int(t) + CRIT_WIT * wit(t));
 
-/* Each hit taken is reduced by half the CON modifier (never below 0). */
-const damage_reduction = (t) => Math.max(0, Math.floor(ability_mod(t.con) / 2));
-
 /* Roll initiative: weapon speed plus DEX, with a little noise. */
 const initiative = (t) => weapon_stats(t.w).init + spd(t) + rnd(4);
 

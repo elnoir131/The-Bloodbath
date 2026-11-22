@@ -113,7 +113,7 @@ const nrow = (e, i, k, F) => `<div class="erow" data-k="${k}" data-i="${i}">
   <input class="nm ei" maxlength="8" data-f="ic" value="${esc(e.ic)}" aria-label="Icon">
   <input class="nm et" maxlength="24" data-f="n" value="${esc(e.n)}" aria-label="Name">
   ${k === "t" ? `<select data-f="kind" aria-label="Type"><option value="trait"${e.kind !== "job" ? " selected" : ""}>Trait</option><option value="job"${e.kind === "job" ? " selected" : ""}>Job</option></select>` : ""}
-  ${F.map(([f, lo, hi]) => `<label class="nl" title="${TL[f]}">${f}<input type="number" min="${lo}" max="${hi}" data-f="${f}" value="${e[f]}"></label>`).join("")}
+  ${F.map(([f, lo, hi]) => `<label class="nl" title="${TL[f]}">${TLAB[f]}<input type="number" min="${lo}" max="${hi}" data-f="${f}" value="${e[f]}"></label>`).join("")}
   <button class="ghost" data-del aria-label="Delete">×</button></div>`;
 
 function rrow(r, i) {
