@@ -1,6 +1,6 @@
 /* state.js: Shared mutable state (match + setup) and pure derived helpers (atk/spd/wit, alive, relationships). */
 
-let GN = {}, tc = 0, BAN = false, NOB = false, LOCKLEAVE = false, DISWIPE = false,
+let MGS = 3, ENDN = 5, GN = {}, tc = 0, BAN = false, NOB = false, LOCKLEAVE = false, DISWIPE = false,
   FAIRN = 3, QUIETN = 3, QUIET = 0, COMBAT = false;
 
 let P = [], TN = [], T = [], TM = [], R = 0, dead = [], pend = [],
@@ -23,12 +23,17 @@ const roll_3d6 = () => 3 + rnd(6) + rnd(6) + rnd(6);
 
 const roll_combat = () => ({ str: roll_3d6(), dex: roll_3d6(), con: roll_3d6(), int: roll_3d6(), wis: roll_3d6(), cha: roll_3d6() });
 
-function random_name() {
+/* Avoids names in `taken` (a Set) so a roster has no duplicates while free combinations remain. */
+function random_name(taken) {
+  for (let i = 0; i < 40; i++) {
+    const n = pick(FIRST) + " " + pick(LAST);
+    if (!taken || !taken.has(n)) return n;
+  }
   return pick(FIRST) + " " + pick(LAST);
 }
 
 const new_contestant = () => ({
-  name: random_name(),
+  name: random_name(new Set(P.map((p) => p.name))),
   img: "",
   team: -1,
   ...roll_combat(),

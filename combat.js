@@ -91,8 +91,6 @@ function resolve_fight(a, b, ca, cb, opts) {
     type: "fight",
     sides: sides.map((s) => ({ ids: s.map((t) => t.id), hpBefore: s.map((t) => Math.round(t.hp)), hpAfter: [] })),
     outcome: "cap",
-    winner: null,
-    loser: null,
     summary: "",
     cls: "h",
     icon: "🤜🤛",
@@ -391,8 +389,6 @@ function resolve_fight(a, b, ca, cb, opts) {
   if (standdown) item.outcome = "standdown";
   else if (done) {
     const f = final;
-    item.winner = f.other.id;
-    item.loser = f.x.id;
     if (f.kind === "death") {
       item.outcome = "death";
       item.cls = "k";

@@ -50,6 +50,12 @@ function start(sd) {
   }));
 
   TM = TN.map((n, j) => ({ n: n.trim() || "Team " + (j + 1) }));
+  /* Identical names would make the log ambiguous: number the repeats. */
+  const cnt = {}, tot = {};
+  T.forEach((t) => (tot[t.n] = (tot[t.n] || 0) + 1));
+  T.forEach((t) => {
+    if (tot[t.n] > 1 && (cnt[t.n] = (cnt[t.n] || 0) + 1) > 1) t.n += " (" + cnt[t.n] + ")";
+  });
   R = 0;
   dead = [];
   pend = [];
@@ -68,6 +74,8 @@ function start(sd) {
   DISWIPE = $("#diswipe").checked;
   FAIRN = num($("#fairn").value, 0, 12);
   QUIETN = num($("#quiet").value, 0, 10);
+  MGS = num($("#mgs").value, 2, 10);
+  ENDN = num($("#endgame").value, 2, 20);
   QUIET = 0;
   TALK = {};
   COMBAT = false;
@@ -286,7 +294,7 @@ function add_log(h, L, raw, txt, sum) {
   const snap = take_snap();
   PG.push({ h, L, raw, txt, snap, sum });
   if (f) PI = PG.length - 1;
-  show_page(true);
+  show_page(f);
 }
 
 $("#pp").onclick = () => {

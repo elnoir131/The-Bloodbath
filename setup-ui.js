@@ -203,7 +203,8 @@ $("#solo").onclick = () => {
 };
 
 $("#rnd").onclick = () => {
-  P.forEach((p) => (p.name = random_name()));
+  const used = new Set();
+  P.forEach((p) => used.add((p.name = random_name(used))));
   draw_setup();
 };
 
@@ -227,7 +228,6 @@ $("#theme").onclick = () => {
 
 function update_mode_ui() {
   const grp = $("#mode").value === "grp";
-  $("#mgsWrap").hidden = !grp;
   $("#egWrap").hidden = grp;
 }
 

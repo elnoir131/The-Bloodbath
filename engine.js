@@ -44,6 +44,7 @@ function die(t, by, why) {
   t.hp = 0;
   t.round = R;
   t.why = why || (by ? "killed by " + by.n : "wounds");
+  t.cause = why ? (why.match(/disaster|thirst|hunger|infection/) || ["wounds"])[0] : by ? "kill" : "wounds";
   pend.push(t);
   dead.push(t);
   if (by) by.k++;
@@ -108,7 +109,10 @@ function solo(a, L) {
   if ((e.fx === "hurt" || e.fx === "die") && chance(wit(a) * 0.04)) e = pick_weighted(ev, a);
 
   let w = null;
-  if (e.fx === "weapon") a.w = w = pick(WPN_STANDARD);
+  if (e.fx === "weapon") {
+    w = pick(WPN_STANDARD);
+    if (!a.w || weapon_rating(w, a) > weapon_rating(a.w, a)) a.w = w;
+  }
   if (e.fx === "craft") a.w = w = pick(WPN_CRAFTED);
   if (e.fx === "food") gain_food(a, 10);
   if (e.fx === "water") gain_water(a, 4);
@@ -126,7 +130,7 @@ function solo(a, L) {
   ]);
   if (e.fx.startsWith("st:")) add_status(a, e.fx.slice(3), L);
 
-  if (a.hp <= 0 && a.alive) {
+  if (a.hp <= 0 && a.alive && !spare_last(a, L)) {
     die(a);
     L.push([`${N(a)} does not survive.`, "k", "💀"]);
     return;
@@ -176,14 +180,15 @@ function run_disaster(d, L) {
   L.push([d.t, "c", d.ic]);
 
   let v = [];
+  const cnt = d.n > 0 ? d.n : al.length; /* N = 0 means everyone */
   if (d.fx === "killweak")
     v = al
       .map((t) => ({ t, s: (100 * t.hp) / t.mhp + spd(t) * 3 + wit(t) * 2 + rnd(30) }))
       .sort((x, y) => x.s - y.s)
-      .slice(0, d.n)
+      .slice(0, cnt)
       .map((o) => o.t);
   if (d.fx === "killrand" || d.fx === "hurtrand" || d.fx.startsWith("st:"))
-    v = shuffle([...al]).slice(0, d.n);
+    v = shuffle([...al]).slice(0, cnt);
 
   const out = (t) => {
     if (t.alive && t.hp <= 0) {
@@ -252,7 +257,7 @@ function run_disaster(d, L) {
 
 /* A disaster that picks out some contestants rather than hitting everyone (or nobody). */
 const singles_out = (d) =>
-  ["killweak", "killrand", "hurtrand"].includes(d.fx) || (d.fx.startsWith("st:") && d.n < alive().length);
+  ["killweak", "killrand", "hurtrand"].includes(d.fx) || (d.fx.startsWith("st:") && d.n > 0 && d.n < alive().length);
 
 function hazard(L) {
   let ds = DIS.filter((e) => e.on);
@@ -264,6 +269,9 @@ function hazard(L) {
 
 /* Stalemate breaker: after several rounds with no death and no combat, the Gamemakers step in.
    Many remain: a harmful disaster. Few remain: two survivors are forced into a fight. */
+const harmful_dis = () =>
+  DIS.filter((e) => e.on && (["killweak", "killrand", "hurtrand", "hurtall"].includes(e.fx) || is_harmful(e)));
+
 function gamemakers(L) {
   const al = alive();
   if (al.length < 2) return false;
@@ -275,9 +283,7 @@ function gamemakers(L) {
     fight_joint(a, b, L, true);
     return true;
   }
-  const ds = DIS.filter(
-    (e) => e.on && (["killweak", "killrand", "hurtrand", "hurtall"].includes(e.fx) || is_harmful(e)),
-  );
+  const ds = harmful_dis();
   if (!ds.length) return false;
   L.push(["The Gamemakers grow impatient with the quiet.", "c", "🚨"]);
   run_disaster(pick_weighted(ds), L);
@@ -378,7 +384,7 @@ function step() {
   const L = [];
 
   if (M === "one" && alive().length > 1) {
-    const threshold = +$("#endgame").value || 5;
+    const threshold = ENDN;
     const groups = new Set(alive().map((t) => t.g));
 
     if (!ENDGAME && (alive().length <= threshold || groups.size === 1)) {
@@ -402,7 +408,7 @@ function step() {
             "announce",
             "💀",
           ]);
-          const ds = DIS.filter((e) => e.on);
+          const ds = harmful_dis();
           if (ds.length) run_disaster(pick_weighted(ds), L);
         }
       }
@@ -498,13 +504,13 @@ function epilogue() {
   const top = [...T].sort((x, y) => y.k - x.k)[0];
   if (top && top.k > 1 && !top.alive)
     out.push(`${top.n} was the deadliest with ${top.k} kills but fell in round ${top.round}.`);
-  const cause = (re) => dead.filter((t) => re.test(t.why)).length,
+  const cause = (c) => dead.filter((t) => t.cause === c).length,
     tolls = [
-      [cause(/disaster/), "to disasters"],
-      [cause(/thirst/), "to thirst"],
-      [cause(/hunger/), "to hunger"],
-      [cause(/infection/), "to infection"],
-      [cause(/^killed by/), "at another contestant's hand"],
+      [cause("disaster"), "to disasters"],
+      [cause("thirst"), "to thirst"],
+      [cause("hunger"), "to hunger"],
+      [cause("infection"), "to infection"],
+      [cause("kill"), "at another contestant's hand"],
     ].filter(([n]) => n);
   const rest = dead.length - tolls.reduce((n, [c]) => n + c, 0);
   if (rest > 0) tolls.push([rest, "to their wounds"]);
@@ -545,7 +551,7 @@ function finish() {
 }
 
 function join_group(a, b) {
-  const max = +$("#mgs").value || 3;
+  const max = MGS;
   const sa = group_size(a.g),
     sb = group_size(b.g);
   if (sa + sb > max) return null;
@@ -793,7 +799,7 @@ function pair(a, b, L) {
   if (!BAN && !ENDGAME && can_join(a) && can_join(b) && chance(Math.max(0, Math.min(0.85, ap)))) {
     const sa = group_size(a.g),
       sb = group_size(b.g);
-    if (sa + sb <= (+$("#mgs").value || 3) && (!(sa > 1 && sb > 1) || chance(0.4))) {
+    if (sa + sb <= (MGS) && (!(sa > 1 && sb > 1) || chance(0.4))) {
       const j = join_group(a, b);
       L.push([
         sa === 1 && sb === 1
@@ -841,7 +847,7 @@ function pair(a, b, L) {
     if (!BAN && !ENDGAME && can_join(a) && can_join(b)) {
       const sa = group_size(a.g),
         sb = group_size(b.g),
-        mx = +$("#mgs").value || 3,
+        mx = MGS,
         tp = Math.min(
           0.5,
           Math.max(0, 0.5 * (0.3 + (ability_mod(a.cha) + ability_mod(b.cha)) * 0.015 + (trait_total(a, "ally") + trait_total(b, "ally")) / 200 + (fac ? 0.2 : 0))),

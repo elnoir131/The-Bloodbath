@@ -2,10 +2,12 @@
 
 const FIRST = ["Ash", "Freddy", "Michael", "Myst", "L", "Plushie", 
     "Gus", "Hana", "Iris", "Subary", "Wei", "Yuki", "Arjun", "Min-ji", 
-    "Chen", "Naruto", "Priya", "Ji-hoon", "Ananya", "Kenji", "Sasuke"];
+    "Chen", "Naruto", "Priya", "Ji-hoon", "Ananya", "Kenji", "Sasuke",
+    "Goku", "Sans", "Statoru", "Sukuna", "Saul", "Steve", "Claude"];
 
 const LAST = ["Ketchum", "Fazbear", "Jackson", "FGO", "Lawliet", "Mistress", 
-    "Kim", "Natsuki", "Sato", "Cruz", "Uchiha", "Frost", "Bell", "Uzumaki", "Doyle", "Park"];
+    "Kim", "Natsuki", "Sato", "Cruz", "Uchiha", "Frost", "Bell", "Uzumaki", "Doyle", "Park",
+  "Son", "Undertale", "Myers", "Gojo", "Ryumen", "Goodman", "Minecraft", "GPT"];
 
 const WPN_STANDARD = ["Dagger", "Short Sword", "Long Sword", "Katana", "Spear", "Battle Axe", 
     "Bow", "Crossbow", "Halberd", "Metal Bat", "Rapier", "Zweihander", "Glaive", "Weapon gloves"];
@@ -60,7 +62,7 @@ const CRIT_INT = 0.006,
    it lowers the ceiling, and each point above average adds CRIT_STR to the crit multiplier. */
 const DMG_SHIFT = 0.43,
   CRIT_STR = 0.05;
-/* How loot is judged: expected damage per exchange against a typical (evade 5) opponent. */
+/* How loot is judged: expected damage per exchange against a typical (evade 10) opponent. */
 const RATING_EVADE = 10;
 const HEAVY_STR = 12,
   HEAVY_PEN = 2,
