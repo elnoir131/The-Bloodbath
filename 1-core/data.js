@@ -358,6 +358,9 @@ const HUNGER = [18, 14, 6];
 const STARVE_FRAC = 0.07;
 const DIRTY_WATER_P = 0.2, URINE_SICK_P = 0.35;
 
+/* Once the endgame is on, a talk-down succeeds this fraction as often (0.4 = 60% less likely). */
+const ENDGAME_CALM = 0.4;
+
 /* Vendetta: someone grieving a lover deals and takes more damage against that lover's killer. */
 const VEND_DEALT = 1.5,
   VEND_TAKEN = 1.5;

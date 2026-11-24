@@ -90,6 +90,9 @@ const weapon_stats = (name) => (Object.prototype.hasOwnProperty.call(WEAPONS, na
 
 const has_tag = (w, tag) => w.tags.includes(tag);
 
+/* "a Katana", "an Axe", and no article for plural names like "Weapon gloves". */
+const a_weapon = (w) => (/s$/i.test(w) ? w : (/^[aeiou]/i.test(w) ? "an " : "a ") + w);
+
 /* The range a wielder really rolls with a weapon, and their crit multiplier. Attack (STR, traits,
    statuses) moves it: strong fighters keep the top of it and hit consistently, weak ones lose the top. */
 const damage_range = (t, w) => {

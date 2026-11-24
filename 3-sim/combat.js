@@ -127,7 +127,7 @@ function resolve_fight(a, b, ca, cb, opts) {
     if (!tgt) return;
     const i = side_of.get(att),
       w = weapon_stats(att.w),
-      how = att.w ? ` with a ${att.w}` : " with bare hands",
+      how = att.w ? ` with ${a_weapon(att.w)}` : " with bare hands",
       acc = accuracy(att) + (n === 0 ? 0 : position_mod(att, tgt, n)) + (bonus ? bonus.acc : 0),
       ev = evade(tgt) - SWARM_PEN * (active(i).length - 1);
     const odds = hit_chance(acc, ev),
@@ -205,7 +205,7 @@ function resolve_fight(a, b, ca, cb, opts) {
     if (!y.w && x.w && chance(TRIBUTE_WEAPON_P)) {
       y.w = x.w;
       x.w = null;
-      gave.push(`a ${y.w}`);
+      gave.push(a_weapon(y.w));
       lines.push([`${N(x)} hands over their ${y.w}.`, "a", "🎒", true]);
     }
     const have = ITEMS.filter((k) => x[k] > 0);

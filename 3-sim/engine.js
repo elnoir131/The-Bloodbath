@@ -38,8 +38,9 @@ const forage_water = (t, L) => {
   if (t.filter > 0) return gain_water(t, 3);
   gain_water(t, 2);
   if (chance(DIRTY_WATER_P - ability_mod(t.con) * 0.02)) {
-    L.push([`${N(t)} drinks untreated water.`, "h", "🤢"]);
-    add_status(t, "poison", L);
+    const pl = [`${N(t)} drinks untreated water.`, "h", "🤢"];
+    L.push(pl);
+    add_status(t, "poison", L, pl);
   }
 };
 
@@ -94,6 +95,7 @@ const fill = (x, a, b, w) =>
   x
     .replace(/\{a\}/g, N(a))
     .replace(/\{b\}/g, b ? N(b) : "someone")
+    .replace(/\ba \{w\}/g, a_weapon(w || "weapon"))
     .replace(/\{w\}/g, w || "weapon");
 
 function solo(a, L) {
@@ -133,12 +135,13 @@ function solo(a, L) {
   if (e.fx === "hurt") a.hp -= hp_amount(a, (10 + rnd(20)) / 100);
   if (e.fx === "die") a.hp = 0;
 
-  L.push([
+  const ev_line = [
     fill(e.t, a, null, w || a.w),
     e.fx === "hurt" ? "h" : e.fx === "die" ? "k" : e.fx === "none" ? "" : "a",
     e.ic,
-  ]);
-  if (e.fx.startsWith("st:")) add_status(a, e.fx.slice(3), L);
+  ];
+  L.push(ev_line);
+  if (e.fx.startsWith("st:")) add_status(a, e.fx.slice(3), L, ev_line);
 
   if (a.hp <= 0 && a.alive && !spare_last(a, L)) {
     die(a);
@@ -179,8 +182,9 @@ function run_duo(e, a, b, L) {
     }
   }
 
-  L.push([fill(e.t, a, b), "", e.ic]);
-  if (e.fx.startsWith("st:")) add_status(b, e.fx.slice(3), L);
+  const ev_line = [fill(e.t, a, b), "", e.ic];
+  L.push(ev_line);
+  if (e.fx.startsWith("st:")) add_status(b, e.fx.slice(3), L, ev_line);
   settle(L, a, b);
 }
 
@@ -237,13 +241,14 @@ function run_disaster(d, L) {
   fav = favourite();
 
   v.forEach((t) => {
-    L.push([
+    const vl = [
       fill(d.v || "{a} is caught up in it.", t),
       d.fx === "hurtrand" || d.fx.startsWith("st:") ? "h" : "k",
       d.ic,
-    ]);
+    ];
+    L.push(vl);
     out(t);
-    if (d.fx.startsWith("st:")) add_status(t, d.fx.slice(3), L);
+    if (d.fx.startsWith("st:")) add_status(t, d.fx.slice(3), L, vl);
   });
   if (fav) patron_line(fav);
 
@@ -333,8 +338,9 @@ function upkeep(t, L) {
   if (t.water <= 0 && !t.pee && t.bottle <= 0) {
     t.pee = true;
     gain_water(t, 1);
-    L.push([`${N(t)} is desperate enough to drink their own urine.`, "h", "🚽"]);
-    if (chance(URINE_SICK_P)) add_status(t, "poison", L);
+    const pl = [`${N(t)} is desperate enough to drink their own urine.`, "h", "🚽"];
+    L.push(pl);
+    if (chance(URINE_SICK_P)) add_status(t, "poison", L, pl);
   }
 
   if (t.water <= 0) {
@@ -540,8 +546,13 @@ function epilogue() {
     ].filter(([n]) => n);
   const rest = dead.length - tolls.reduce((n, [c]) => n + c, 0);
   if (rest > 0) tolls.push([rest, "to their wounds"]);
-  if (tolls.length)
-    out.push(`The arena took its toll: ${tolls.map(([n, w]) => `${n} ${w}`).join(", ")}.`);
+  if (tolls.length === 1) {
+    const [n, w] = tolls[0];
+    out.push(n === 1 ? `One fell ${w}.` : `All ${n} fell ${w}.`);
+  } else if (tolls.length) {
+    const parts = tolls.map(([n, w]) => `${n} ${w}`);
+    out.push(`Of the ${dead.length} who fell, ${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}.`);
+  }
   return out.join(" ");
 }
 
@@ -592,20 +603,23 @@ function join_group(a, b) {
   return { nm: GN[to].n, fn: GN[from] ? GN[from].n : "another group" };
 }
 
-function add_status(t, id, L) {
+/* `into` (optional) is the log line that caused the status: the result is added to it as a short
+   badge, e.g. "(😵 stunned)", instead of a second line that repeats the same news. */
+function add_status(t, id, L, into) {
   const d = SD(id);
   if (!d || !t.alive) return;
+  const say = (text, cls, ic, badge) => (into ? (into[0] += " " + badge) : L.push([text, cls, ic]));
   /* Only harmful statuses can be resisted. Buffs (inspired, regenerating...) always land. */
   const harmful = d.dmg > 0 || d.atk < 0 || d.spd < 0 || d.wit < 0 || d.int < 0;
   if (harmful && chance(Math.max(0, ability_mod(t.con) * 0.05))) {
-    L.push([`${N(t)} shrugs off the ${d.n.toLowerCase()} effect.`, "a", "🛡️"]);
+    say(`${N(t)} shrugs off the ${d.n.toLowerCase()} effect.`, "a", "🛡️", `(shrugs off ${d.n.toLowerCase()})`);
     return;
   }
   const s = t.fx.find((x) => x.id === id);
   if (s) s.left = d.dur;
   else {
     t.fx.push({ id, left: d.dur });
-    L.push([`${N(t)} is ${d.n.toLowerCase()}.`, "h", d.ic]);
+    say(`${N(t)} is ${d.n.toLowerCase()}.`, "h", d.ic, `(${d.ic} ${d.n.toLowerCase()})`);
   }
 }
 
@@ -858,7 +872,8 @@ function pair(a, b, L) {
     eff = Math.max(0, tk.n - Math.floor((R - tk.last) / 3)),
     calm =
       Math.min(0.5, Math.max(0, 0.15 * ability_mod(b.cha) - 0.03 * ability_mod(a.cha) - (tk.fought ? 0.1 : 0))) *
-      Math.pow(0.5, eff);
+      Math.pow(0.5, eff) *
+      (ENDGAME ? ENDGAME_CALM : 1);
   if (chance(calm)) {
     tk.n++;
     tk.last = R;
