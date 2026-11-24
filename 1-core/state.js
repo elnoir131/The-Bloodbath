@@ -71,8 +71,14 @@ const trait_total = (t, k) =>
 const status_total = (t, k) => t.fx.reduce((n, s) => n + ((SD(s.id) || {})[k] || 0), 0);
 
 /* Combat stats on a 1-10 scale: 5 + ability modifier + trait and status modifiers. */
+/* Hunger stage 0-3: how many of the HUNGER food levels this contestant is at or below. */
+const hunger_stage = (t) => HUNGER.filter((h) => t.food <= h).length;
+
 const derived = (t, raw, k) =>
-  Math.max(1, Math.min(10, 5 + ability_mod(raw) + trait_total(t, k) + status_total(t, k)));
+  Math.max(
+    1,
+    Math.min(10, 5 + ability_mod(raw) + trait_total(t, k) + status_total(t, k) - (k === "atk" || k === "spd" ? hunger_stage(t) : 0)),
+  );
 
 const atk = (t) => derived(t, t.str, "atk");
 const spd = (t) => derived(t, t.dex, "spd");

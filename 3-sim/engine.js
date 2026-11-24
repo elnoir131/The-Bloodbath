@@ -33,6 +33,16 @@ const gain_food = (t, x) => {
   t.food = Math.min(99, t.food + x);
 };
 
+/* Foraging: a filter makes pond and river water safe; without one there is a risk of getting sick. */
+const forage_water = (t, L) => {
+  if (t.filter > 0) return gain_water(t, 3);
+  gain_water(t, 2);
+  if (chance(DIRTY_WATER_P - ability_mod(t.con) * 0.02)) {
+    L.push([`${N(t)} drinks untreated water.`, "h", "🤢"]);
+    add_status(t, "poison", L);
+  }
+};
+
 const hp_amount = (t, p) => Math.round(t.mhp * p);
 
 const heal = (t, p) => {
@@ -294,9 +304,11 @@ const over = () =>
   alive().length <= 1 || (M === "grp" && new Set(alive().map((t) => t.g)).size <= 1);
 
 function upkeep(t, L) {
-  const hurt = t.hp < t.mhp * 0.5;
-  t.water -= 1 + (t.ex ? 0.75 : 0) + (hurt ? 0.5 : 0) + (t.inf ? 0.5 : 0);
-  t.food -= 1 + (t.ex ? 1 : 0) + (hurt || t.inf ? 1 : 0);
+  const hurt = t.hp < t.mhp * 0.5,
+    bleeding = t.fx.some((s) => s.id === "bleed"),
+    stress = hurt || t.fx.some((s) => s.id === "grief");
+  t.water -= WATER_BASE + (t.ex ? WATER_FIGHT : 0) + (hurt ? 0.5 : 0) + (t.inf ? 0.5 : 0) + (bleeding ? WATER_BLEED : 0);
+  t.food -= (bleeding ? FOOD_BLEED : t.ex ? FOOD_FIGHT : 1) + (stress ? FOOD_STRESS : 0) + (t.inf ? 0.5 : 0);
   t.ex = false;
 
   if (t.inf) t.hp -= hp_amount(t, 0.05);
@@ -305,7 +317,7 @@ function upkeep(t, L) {
     gain_water(t, 4);
     L.push([`${N(t)} drinks from a water bottle.`, "a", "🍶"]);
   }
-  if (t.food <= 3 && t.ration > 0) {
+  if (t.food <= EAT_AT && t.ration > 0) {
     t.ration--;
     gain_food(t, 14);
     L.push([`${N(t)} eats a ration.`, "a", "🥫"]);
@@ -315,6 +327,14 @@ function upkeep(t, L) {
     heal(t, 0.35);
     t.inf = false;
     L.push([`${N(t)} uses a medkit.`, "a", "🩹"]);
+  }
+
+  /* Desperate and out of bottles: drinking urine buys one more round, at a risk of getting sick. */
+  if (t.water <= 0 && !t.pee && t.bottle <= 0) {
+    t.pee = true;
+    gain_water(t, 1);
+    L.push([`${N(t)} is desperate enough to drink their own urine.`, "h", "🚽"]);
+    if (chance(URINE_SICK_P)) add_status(t, "poison", L);
   }
 
   if (t.water <= 0) {
@@ -342,13 +362,19 @@ function upkeep(t, L) {
     if (!d) return false;
     t.hp = Math.min(t.mhp, t.hp - Math.round((t.mhp * d.dmg) / 100));
     if (s.id === "grief") return true;
-    s.left--;
+    s.left -= s.id === "bleed" ? (t.food > HUNGER[0] ? 2 : t.food > HUNGER[2] ? 1 : 0.5) : 1;
     return s.left > 0;
   });
 
+  const hs = hunger_stage(t);
+  if (hs > (t.hs || 0) && hs < 3) {
+    L.push([hs === 1 ? `${N(t)} is getting hungry.` : `${N(t)} is weak with hunger.`, "h", "🍖"]);
+  }
+  t.hs = hs;
+
   if (t.food <= 0) {
     t.food = 0;
-    t.hp -= hp_amount(t, Math.max(0.02, 0.08 - 0.01 * ability_mod(t.con)));
+    t.hp -= hp_amount(t, Math.max(0.04, STARVE_FRAC - 0.01 * ability_mod(t.con)));
     if (t.hp > 0 && !t.hg) {
       t.hg = true;
       L.push([`${N(t)} is starving and losing strength.`, "h", "🥀"]);
@@ -416,7 +442,7 @@ function step() {
   }
 
   alive().forEach((t) => {
-    if (chance(FORAGE_BASE + wit(t) * FORAGE_WIT)) gain_water(t, 2);
+    if (chance(FORAGE_BASE + wit(t) * FORAGE_WIT)) forage_water(t, L);
     upkeep(t, L);
   });
 

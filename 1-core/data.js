@@ -111,11 +111,12 @@ const STATS = [
   ["water", "💧", "Water: rounds before thirst", "Water"],
   ["food", "🍖", "Food: rounds before hunger", "Food"],
   ["bottle", "🍾", "Water bottles", "Bottles"],
+  ["filter", "🚰", "Water filter: makes pond and river water safe to drink", "Filter"],
   ["ration", "🥫", "Rations", "Rations"],
   ["kit", "🩹", "Medkits", "Medkits"],
 ];
 
-const ITEMS = ["bottle", "ration", "kit"];
+const ITEMS = ["bottle", "ration", "kit", "filter"];
 
 const SR = {
   str: [1, 20],
@@ -127,11 +128,12 @@ const SR = {
   water: [1, 12],
   food: [1, 99],
   bottle: [0, 5],
+  filter: [0, 1],
   ration: [0, 5],
   kit: [0, 5],
 };
 
-const DEFS = { water: 5, food: 40, bottle: 0, ration: 0, kit: 0 };
+const DEFS = { water: 6, food: 24, bottle: 1, filter: 1, ration: 0, kit: 0 };
 
 const ICONS = [
   [/turns on/, "🔪"],
@@ -347,8 +349,14 @@ const ZFX = [
   ["rainall", "Rain (+3 water)"],
 ];
 
-const FORAGE_BASE = 0.12,
+const FORAGE_BASE = 0.09,
   FORAGE_WIT = 0.025;
+
+const WATER_BASE = 1, WATER_FIGHT = 0.75, WATER_BLEED = 1;
+const FOOD_FIGHT = 2, FOOD_BLEED = 3, FOOD_STRESS = 0.5, EAT_AT = 8;
+const HUNGER = [18, 14, 6];
+const STARVE_FRAC = 0.07;
+const DIRTY_WATER_P = 0.2, URINE_SICK_P = 0.35;
 
 /* Vendetta: someone grieving a lover deals and takes more damage against that lover's killer. */
 const VEND_DEALT = 1.5,

@@ -12,7 +12,7 @@ function save() {
     localStorage.setItem(
       KEY,
       JSON.stringify({
-        ver: 14,
+        ver: 15,
         P,
         TN,
         SOLO,
@@ -76,7 +76,7 @@ function apply_setup(d) {
             let v = p[k];
             if (
               v === undefined ||
-              (mig && ["food", "water", "bottle", "ration", "kit"].includes(k))
+              ((mig || d.ver < 15) && ["food", "water", "bottle", "filter", "ration", "kit"].includes(k))
             ) {
               v =
                 DEFS[k] !== undefined
@@ -151,7 +151,7 @@ $("#wipe").onclick = () => {
 /* Everything that decides how a match plays out, minus photos when no_img is set. */
 function setup_snapshot(no_img) {
   const d = deep_clone({
-    ver: 14,
+    ver: 15,
     P: P.slice(0, contestant_count()),
     TN,
     SOLO,
