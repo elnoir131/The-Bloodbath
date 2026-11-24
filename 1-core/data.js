@@ -1,13 +1,13 @@
 /* data.js: Content and defaults only: names, weapons, stat ranges, default events/traits/statuses, tuning constants. */
 
 const FIRST = ["Ash", "Freddy", "Michael", "Myst", "L", "Plushie", 
-    "Gus", "Hana", "Iris", "Subary", "Wei", "Yuki", "Arjun", "Min-ji", 
+    "Gus", "Hana", "Iris", "Subaru", "Wei", "Yuki", "Arjun", "Min-ji", 
     "Chen", "Naruto", "Priya", "Ji-hoon", "Ananya", "Kenji", "Sasuke",
     "Goku", "Sans", "Statoru", "Sukuna", "Saul", "Steve", "Claude"];
 
 const LAST = ["Ketchum", "Fazbear", "Jackson", "FGO", "Lawliet", "Mistress", 
     "Kim", "Natsuki", "Sato", "Cruz", "Uchiha", "Frost", "Bell", "Uzumaki", "Doyle", "Park",
-  "Son", "Undertale", "Myers", "Gojo", "Ryumen", "Goodman", "Minecraft", "GPT"];
+    "Son", "Undertale", "Myers", "Gojo", "Ryumen", "Goodman", "Minecraft", "GPT"];
 
 const WPN_STANDARD = ["Dagger", "Short Sword", "Long Sword", "Katana", "Spear", "Battle Axe", 
     "Bow", "Crossbow", "Halberd", "Metal Bat", "Rapier", "Zweihander", "Glaive", "Weapon gloves"];
@@ -35,7 +35,6 @@ const WEAPONS = {
   "Battle Axe": { tags: ["heavy"], dmg: [16, 28], acc: -2, crit: 0.08, cx: 2.25, init: 3 },
   "Zweihander": { tags: ["heavy"], dmg: [17, 29], acc: -2, crit: 0.07, cx: 2, init: 2 },
   "Bow": { tags: ["ranged"], dmg: [11, 19], acc: 0, crit: 0.08, cx: 2, init: 5 },
-  /* Fires every other exchange, so each shot hits harder to make up for it. */
   "Crossbow": { tags: ["ranged"], dmg: [20, 32], acc: 2, crit: 0.06, cx: 2, init: 6, reload: true },
   "Crude Bow": { tags: ["ranged"], dmg: [10, 17], acc: -2, crit: 0.04, cx: 1.5, init: 4, crafted: true },
   "Wooden Spear": { tags: ["reach"], dmg: [11, 18], acc: 0, crit: 0.04, cx: 1.5, init: 4, crafted: true },
