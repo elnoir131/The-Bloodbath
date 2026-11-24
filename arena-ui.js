@@ -72,10 +72,10 @@ function start(sd) {
   NOB = $("#nob").checked;
   LOCKLEAVE = $("#lockleave").checked;
   DISWIPE = $("#diswipe").checked;
-  FAIRN = num($("#fairn").value, 0, 12);
-  QUIETN = num($("#quiet").value, 0, 10);
-  MGS = num($("#mgs").value, 2, 10);
-  ENDN = num($("#endgame").value, 2, 20);
+  FAIRN = clamp_int($("#fairn").value, 0, 12);
+  QUIETN = clamp_int($("#quiet").value, 0, 10);
+  MGS = clamp_int($("#mgs").value, 2, 10);
+  ENDN = clamp_int($("#endgame").value, 2, 20);
   QUIET = 0;
   TALK = {};
   COMBAT = false;
@@ -124,10 +124,10 @@ function pics(x, e0) {
   if (!i.length && !b) return "";
   const h =
     i.length === 2
-      ? av(T[i[0]]) + (bs[0] || "") + av(T[i[1]]) + (bs[1] || "")
+      ? avatar_html(T[i[0]]) + (bs[0] || "") + avatar_html(T[i[1]]) + (bs[1] || "")
       : i
           .slice(0, 12)
-          .map((k) => av(T[k]))
+          .map((k) => avatar_html(T[k]))
           .join("") + b;
   return `<div class="pics${i.length > 4 ? " many" : ""}">${h}</div>`;
 }
@@ -201,7 +201,7 @@ function fight_sides(f) {
 function fight_html(f, key) {
   const sd = fight_sides(f),
     ids = sd.flatMap((s) => s.ids),
-    side = (s) => s.ids.map((id) => av(T[id])).join(""),
+    side = (s) => s.ids.map((id) => avatar_html(T[id])).join(""),
     chips = sd
       .flatMap((s) =>
         s.ids.map((id, j) => {
@@ -406,7 +406,7 @@ function render() {
     const op = SHOWALL || OPENR.has(t.id);
     return `
       <div class="t ${t.alive ? "" : "d"}${op ? " o" : ""}" data-id="${t.id}" tabindex="0" role="button" aria-expanded="${op}">
-        ${av(t)}
+        ${avatar_html(t)}
         <div class="x">
           <b>${esc(t.n)}</b>
           <div class="hp"><i style="width:${Math.max(0, (100 * t.hp) / t.mhp)}%"></i></div>

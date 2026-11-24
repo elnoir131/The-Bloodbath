@@ -228,13 +228,13 @@ const clean_list = (a, F, job) =>
         .filter((e) => e && typeof e === "object")
         .map((e) => {
           const o = {
-            id: String(e.id || uid()).slice(0, 14),
+            id: String(e.id || unique_id()).slice(0, 14),
             n: String(e.n || "?").slice(0, 24),
             ic: String(e.ic || "⭐").slice(0, 8),
           };
           if (job) o.kind = e.kind === "job" ? "job" : "trait";
           F.forEach(([k, lo, hi]) => {
-            o[k] = num(e[k], lo, hi);
+            o[k] = clamp_int(e[k], lo, hi);
           });
           return o;
         })

@@ -149,7 +149,7 @@ function handle_tsr_change(e) {
   const sp = F.find((x) => x[0] === f);
   if (k === "r") v = f === "type" ? v : f === "mutual" ? e.target.checked : +v;
   else if (sp) {
-    v = num(v, sp[1], sp[2]);
+    v = clamp_int(v, sp[1], sp[2]);
     if (e.type === "change") e.target.value = v;
   }
   o[f] = v;
@@ -188,7 +188,7 @@ const add_new_entry = (k, o) => () => {
 };
 
 $("#addT").onclick = add_new_entry("t", () => ({
-  id: uid(),
+  id: unique_id(),
   n: "New trait",
   ic: "⭐",
   kind: "trait",
@@ -196,7 +196,7 @@ $("#addT").onclick = add_new_entry("t", () => ({
 }));
 
 $("#addJ").onclick = add_new_entry("t", () => ({
-  id: uid(),
+  id: unique_id(),
   n: "New job",
   ic: "💼",
   kind: "job",
@@ -204,7 +204,7 @@ $("#addJ").onclick = add_new_entry("t", () => ({
 }));
 
 $("#addX").onclick = add_new_entry("x", () => ({
-  id: uid(),
+  id: unique_id(),
   n: "New status",
   ic: "✨",
   dmg: 0,

@@ -45,7 +45,7 @@ function draw_people() {
       <div class="team" style="--c:${p.team >= 0 ? col(p.team) : "var(--line)"}">
         <div class="row" style="margin-top:0">
           <label class="avl" title="Choose a photo">
-            ${av(p)}
+            ${avatar_html(p)}
             <input type="file" accept="image/*" hidden data-img="${i}">
           </label>
           <input class="nm" maxlength="24" data-n="${i}" value="${esc(p.name)}" aria-label="Name">

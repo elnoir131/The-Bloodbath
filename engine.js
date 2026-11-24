@@ -537,7 +537,7 @@ function finish() {
   d.className = "win";
   d.innerHTML =
     (al.length
-      ? `${al.map(av).join("")}<h2>${esc(al.map((t) => t.n).join(" & "))} ${al.length > 1 ? "win together" : "wins"}</h2><p class="meta">${kill_text(al.reduce((n, t) => n + t.k, 0))} · ${R} rounds · seed ${SEED}</p>`
+      ? `${al.map(avatar_html).join("")}<h2>${esc(al.map((t) => t.n).join(" & "))} ${al.length > 1 ? "win together" : "wins"}</h2><p class="meta">${kill_text(al.reduce((n, t) => n + t.k, 0))} · ${R} rounds · seed ${SEED}</p>`
       : `<h2>No survivors</h2><p class="meta">The arena claims everyone. Seed ${SEED}.</p>`) +
     `<p class="epi">${esc(epi)}</p>` +
     `<ol>${order.map((t) => `<li>${esc(t.n)} <span class="meta">${esc(info(t))}</span></li>`).join("")}</ol>`;

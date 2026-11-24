@@ -3,12 +3,14 @@
 const $ = (s) => document.querySelector(s);
 
 /* ---------- randomness: everything in a match goes through rng so a seed reproduces it ---------- */
+// Swappable PRNG so setting a seed makes the whole match reproducible.
 let rng = Math.random;
 
 const rnd = (n) => Math.floor(rng() * n);
 const pick = (a) => a[rnd(a.length)];
 const chance = (p) => rng() < p;
 
+// In-place Fisher-Yates shuffle, driven by the shared rng (so it's seed-reproducible).
 const shuffle = (a) => {
   for (let i = a.length - 1; i > 0; i--) {
     const j = rnd(i + 1);
@@ -17,6 +19,7 @@ const shuffle = (a) => {
   return a;
 };
 
+// mulberry32: tiny 32-bit seeded PRNG. Same seed → same [0,1) sequence.
 function mulberry32(a) {
   return () => {
     a |= 0;
@@ -27,6 +30,7 @@ function mulberry32(a) {
   };
 }
 
+// FNV-1a 32-bit hash: string (e.g. seed text) → uint32 to feed to mulberry32.
 const hash_string = (s) => {
   let h = 2166136261;
   for (const c of s) {
@@ -50,16 +54,19 @@ const esc = (s) =>
     (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
   );
 
+// Deterministic hue per index; the 47° step spreads adjacent indices around the wheel.
 const col = (j) => `hsl(${(j * 47) % 360} 60% 55%)`;
 
-function av(t) {
+function avatar_html(t) {
   return t.img
     ? `<img class="av" alt="" src="${esc(t.img)}">`
     : `<span class="av">${esc((t.name || t.n || "?")[0].toUpperCase())}</span>`;
 }
 
 // Coerce to number, round, clamp to [lo, hi]. Unparseable input becomes 0.
-const num = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(+v || 0)));
+const clamp_int = (v, lo, hi) => Math.max(lo, Math.min(hi, Math.round(+v || 0)));
 
-const uid = () => "x" + Math.floor(Math.random() * 1e8).toString(36);
+const unique_id = () => "x" + Math.floor(Math.random() * 1e8).toString(36);
+
+// JSON round-trip clone; fine for plain data, drops functions/Dates/undefineds.
 const deep_clone = (a) => JSON.parse(JSON.stringify(a));
