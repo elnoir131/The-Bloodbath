@@ -52,7 +52,7 @@ function loot_body(w, l, lines) {
 
 const hp_frac = (t) => Math.max(0, t.hp) / t.mhp,
   clamp = (x, lo, hi) => Math.max(lo, Math.min(hi, x)),
-  ITEM_TEXT = { bottle: "a water bottle", ration: "a ration", kit: "a medkit" };
+  ITEM_TEXT = { bottle: "a water bottle", ration: "a ration", kit: "a medkit", filter: "a water filter" };
 
 const grudge_between = (a, b) =>
   ["enemy", "rival"].includes(relationship_of(a, b)) || ["enemy", "rival"].includes(relationship_of(b, a));
@@ -383,8 +383,23 @@ function resolve_fight(a, b, ca, cb, opts) {
 
   const done = over() && !standdown && final,
     words = events.map((f, k) => text_of(f, done && k === events.length - 1));
-  if (standdown || (!done && opts.scuffle)) words.push(`${N(a)} and ${N(b)} trade blows, then both back off, bloodied.`);
-  else if (!done) words.push(`${N(lead_of(0))} and ${N(lead_of(1))} trade blows until both are spent, then back off, bloodied.`);
+  /* "Bloodied" only for those who really lost health. */
+  const hurt = item.sides.flatMap((s) => s.ids.filter((_, j) => s.hpAfter[j] < s.hpBefore[j])),
+    total = item.sides.reduce((n, s) => n + s.ids.length, 0),
+    who = (ids) => ids.map((id) => N(T[id])).join(" and "),
+    tail = !hurt.length ? "" : hurt.length === total ? ", bloodied" : ` (only ${who(hurt)} bloodied)`;
+  if (standdown || (!done && opts.scuffle))
+    words.push(
+      hurt.length
+        ? `${N(a)} and ${N(b)} trade blows, then both back off${tail}.`
+        : `${N(a)} and ${N(b)} circle each other and trade misses, then both back off unharmed.`,
+    );
+  else if (!done)
+    words.push(
+      hurt.length
+        ? `${N(lead_of(0))} and ${N(lead_of(1))} trade blows until both are spent, then back off${tail}.`
+        : `${N(lead_of(0))} and ${N(lead_of(1))} swing at each other until both are spent, then back off unharmed.`,
+    );
   item.summary = words.join(" ");
   if (standdown) item.outcome = "standdown";
   else if (done) {
