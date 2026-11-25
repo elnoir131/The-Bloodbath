@@ -33,17 +33,6 @@ const gain_food = (t, x) => {
   t.food = Math.min(99, t.food + x);
 };
 
-/* Foraging: a filter makes pond and river water safe; without one there is a risk of getting sick. */
-const forage_water = (t, L) => {
-  if (t.filter > 0) return gain_water(t, 3);
-  gain_water(t, 2);
-  if (chance(DIRTY_WATER_P - ability_mod(t.con) * 0.02)) {
-    const pl = [`${N(t)} drinks untreated water.`, "h", "🤢"];
-    L.push(pl);
-    add_status(t, "poison", L, pl);
-  }
-};
-
 const hp_amount = (t, p) => Math.round(t.mhp * p);
 
 const heal = (t, p) => {
@@ -56,6 +45,7 @@ function die(t, by, why) {
   t.round = R;
   t.why = why || (by ? "killed by " + by.n : "wounds");
   t.cause = why ? (why.match(/disaster|thirst|hunger|infection/) || ["wounds"])[0] : by ? "kill" : "wounds";
+  if (RES) RES.water.forEach((s) => (s.holder === t.id ? (s.holder = null) : 0)); /* a claim dies with its holder */
   pend.push(t);
   dead.push(t);
   if (by) by.k++;
@@ -126,8 +116,19 @@ function solo(a, L) {
     if (!a.w || weapon_rating(w, a) > weapon_rating(a.w, a)) a.w = w;
   }
   if (e.fx === "craft") a.w = w = pick(WPN_CRAFTED);
-  if (e.fx === "food") gain_food(a, 10);
-  if (e.fx === "water") gain_water(a, 4);
+  let dry = "";
+  if (e.fx === "food") {
+    const sp = game_of(0);
+    if (sp) {
+      sp.pop -= 1;
+      gain_food(a, 10);
+    } else dry = `${N(a)} checks the traps and finds nothing.`;
+  }
+  if (e.fx === "water") {
+    const got = take_allowed(a, 4);
+    if (got) gain_water(a, got);
+    else dry = guarded_text(a) || `${N(a)} searches for water but finds only dry ground.`;
+  }
   if (e.fx === "ration") a.ration++;
   if (e.fx === "bottle") a.bottle++;
   if (e.fx === "medkit") a.kit++;
@@ -136,7 +137,7 @@ function solo(a, L) {
   if (e.fx === "die") a.hp = 0;
 
   const ev_line = [
-    fill(e.t, a, null, w || a.w),
+    dry || fill(e.t, a, null, w || a.w),
     e.fx === "hurt" ? "h" : e.fx === "die" ? "k" : e.fx === "none" ? "" : "a",
     e.ic,
   ];
@@ -268,6 +269,8 @@ function run_disaster(d, L) {
     if (d.fx === "thirstall") t.water = Math.max(0, t.water - 2);
     if (d.fx === "rainall") gain_water(t, 3);
   });
+  if (RES && d.fx === "thirstall") RES.water.forEach((s) => (s.stock *= 0.6));
+  if (RES && d.fx === "rainall") RES.water.forEach((s) => (s.stock = Math.min(s.max, s.stock + 0.4 * s.max)));
 }
 
 /* A disaster that picks out some contestants rather than hitting everyone (or nobody). */
@@ -414,6 +417,7 @@ function step() {
   HELPERS = new Set();
   COMBAT = false;
   const L = [];
+  regen_reserve(L);
 
   if (M === "one" && alive().length > 1) {
     const threshold = ENDN;
@@ -448,7 +452,13 @@ function step() {
   }
 
   alive().forEach((t) => {
-    if (chance(FORAGE_BASE + wit(t) * FORAGE_WIT)) forage_water(t, L);
+    if (!t.alive) return;
+    claim_source(t, L);
+    if (!camp(t, L)) {
+      if (chance(FORAGE_BASE + wit(t) * FORAGE_WIT)) forage_water(t, L);
+      hunt(t, L);
+    }
+    if (!t.alive) return;
     upkeep(t, L);
   });
 
@@ -469,7 +479,7 @@ function step() {
     const a = pool.pop();
     if (!a.alive) continue;
     let b = null;
-    if (pool.length && chance(0.5)) {
+    if (pool.length && chance(0.67)) {
       let i = rnd(pool.length);
       if (pool.length > 1 && chance(LEAN_CHANCE)) i = lean_target(a, pool);
       const m = pool.findIndex((x) => x.g === a.g);

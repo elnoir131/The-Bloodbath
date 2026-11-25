@@ -357,6 +357,36 @@ const HUNGER = [18, 14, 6];
 const STARVE_FRAC = 0.07;
 const DIRTY_WATER_P = 0.2, URINE_SICK_P = 0.35;
 
+/* Shared reserve, scaled by the number of contestants (make_reserve in engine.js).
+   Water sources: `per` units of water per contestant; `regen` is the share of the maximum that comes back
+   each round. Animals: `per` animals per contestant, `food` is what one kill is worth, `tier` is its size
+   (0 small, 1 medium, 2 large). Hunting each tier: base chance, plus the risk of getting hurt on a miss. */
+const WATER_SOURCES = [
+  { id: "stream", n: "stream", per: 2, regen: 0.1 },
+  { id: "pond", n: "pond", per: 1.5, regen: 0.04 },
+];
+const ANIMALS = [
+  { id: "rabbit", n: "rabbit", ic: "🐇", tier: 0, per: 0.4, food: 6, regen: 0.048 },
+  { id: "fish", n: "fish", ic: "🐟", tier: 0, per: 0.32, food: 6, regen: 0.04 },
+  { id: "deer", n: "deer", ic: "🦌", tier: 1, per: 0.18, food: 13, regen: 0.024 },
+  { id: "boar", n: "boar", ic: "🐗", tier: 1, per: 0.12, food: 14, regen: 0.02 },
+  { id: "bear", n: "bear", ic: "🐻", tier: 2, per: 0.048, food: 25, regen: 0.008 },
+  { id: "wolf", n: "wolf pack", ic: "🐺", tier: 2, per: 0.048, food: 20, regen: 0.012 },
+];
+const TIERS = [
+  { base: 0.75, hurt: 0 },
+  { base: 0.55, hurt: 0.18 },
+  { base: 0.35, hurt: 0.35 },
+];
+/* Control of water sources. A contestant may claim a source (chance rises with attack, with a group, and as water
+   gets scarce) and camp there: CAMP_WATER free water a round, but no foraging or hunting, and they leave if they
+   get hungry (or by chance, ABANDON_P). Allies drink freely; anyone else only gets in if desperate: a talk-down
+   (TALK_WATER plus charisma), a fight, or being turned away. */
+const CLAIM_BASE = 0.008, CLAIM_ATK = 0.003, CAMP_WATER = 2, ABANDON_P = 0.05, TALK_WATER = 0.15;
+
+/* Chance per round that a contestant goes hunting: a base chance, more when hungry. */
+const HUNT_BASE = 0.012, HUNT_NEED = 0.04;
+
 /* Once the endgame is on, a talk-down succeeds this fraction as often (0.4 = 60% less likely). */
 const ENDGAME_CALM = 0.4;
 

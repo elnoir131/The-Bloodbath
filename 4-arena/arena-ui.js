@@ -52,6 +52,7 @@ function start(sd) {
 
   TM = TN.map((n, j) => ({ n: n.trim() || "Team " + (j + 1) }));
   /* Identical names would make the log ambiguous: number the repeats. */
+  RES = make_reserve(T.length);
   const cnt = {}, tot = {};
   T.forEach((t) => (tot[t.n] = (tot[t.n] || 0) + 1));
   T.forEach((t) => {
